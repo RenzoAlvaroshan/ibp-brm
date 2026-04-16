@@ -1,0 +1,107 @@
+export type Role = 'admin' | 'editor' | 'viewer'
+export type Status = 'draft' | 'review' | 'approved' | 'rejected'
+export type Priority = 'critical' | 'high' | 'medium' | 'low'
+
+export interface User {
+  id: string
+  email: string
+  full_name: string
+  role: Role
+  avatar_url: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Tag {
+  id: string
+  name: string
+  color: string
+}
+
+export interface Comment {
+  id: string
+  requirement_id: string
+  author_id: string
+  author?: User
+  body: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ActivityLog {
+  id: string
+  requirement_id: string
+  requirement_title?: string
+  actor_id: string
+  actor?: User
+  action: string
+  meta: string
+  created_at: string
+}
+
+export interface Requirement {
+  id: string
+  title: string
+  description: string
+  status: Status
+  priority: Priority
+  created_by_id: string
+  created_by?: User
+  assigned_to_id?: string
+  assigned_to?: User
+  due_date?: string
+  position: number
+  tags?: Tag[]
+  comments?: Comment[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Notification {
+  id: string
+  user_id: string
+  message: string
+  link: string
+  is_read: boolean
+  created_at: string
+}
+
+export interface PaginatedResponse<T> {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface DashboardMetrics {
+  total: number
+  approved: number
+  in_review: number
+  critical_open: number
+  by_status: { status: Status; count: number }[]
+  by_priority: { priority: Priority; count: number }[]
+  recent_activity: ActivityLog[]
+}
+
+export interface AuthResponse {
+  access_token: string
+  refresh_token: string
+  user: User
+}
+
+export interface ApiError {
+  error: string
+  code: string
+}
+
+export interface RequirementFilters {
+  status?: Status
+  priority?: Priority
+  tag?: string
+  assignee?: string
+  search?: string
+  sort?: string
+  dir?: 'asc' | 'desc'
+  page?: number
+  limit?: number
+}
