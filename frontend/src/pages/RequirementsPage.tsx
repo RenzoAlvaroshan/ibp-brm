@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Download, Columns3, Trash2, Pencil, ChevronUp, ChevronDown } from 'lucide-react'
+import {
+  Plus, Download, ChevronDown, ChevronRight, Pencil, Trash2,
+  Calendar, User as UserIcon, Filter, SortAsc, LayoutList,
+} from 'lucide-react'
 import {
   useRequirementsQuery, useTagsQuery, useUsersQuery, useDeleteRequirement,
 } from '@/hooks/useApi'
@@ -16,16 +19,178 @@ import { formatDate } from '@/utils'
 import { useAuthStore } from '@/store/auth'
 import { useDemoStore } from '@/store/demo'
 import { requirementsApi } from '@/api/endpoints'
+import { cn } from '@/utils'
+
+const STATUS_ORDER: Status[] = ['draft', 'review', 'approved', 'rejected']
+
+const STATUS_HEADER: Record<Status, { label: string; color: string; dot: string }> = {
+  draft:    { label: 'Draft',    color: 'text-gray-600',   dot: 'bg-gray-400' },
+  review:   { label: 'In Review',color: 'text-amber-700',  dot: 'bg-amber-400' },
+  approved: { label: 'Approved', color: 'text-emerald-700',dot: 'bg-emerald-400' },
+  rejected: { label: 'Rejected', color: 'text-red-600',    dot: 'bg-red-400' },
+}
+
+const PRIORITY_COLOR: Record<Priority, string> = {
+  critical: '#ef4444',
+  high:     '#f97316',
+  medium:   '#3b82f6',
+  low:      '#9ca3af',
+}
+
+interface RowProps {
+  req: Requirement
+  canCreate: boolean
+  onOpen: (r: Requirement) => void
+  onEdit: (r: Requirement) => void
+  onDelete: (r: Requirement) => void
+}
+
+function RequirementRow({ req, canCreate, onOpen, onEdit, onDelete }: RowProps) {
+  return (
+    <div
+      className="req-row group flex items-center gap-0 border-b border-gray-100 last:border-0 cursor-pointer"
+      onClick={() => onOpen(req)}
+    >
+      {/* Priority color bar */}
+      <div className="w-1 self-stretch shrink-0 rounded-l" style={{ backgroundColor: PRIORITY_COLOR[req.priority] }} />
+
+      <div className="flex-1 flex items-center gap-3 px-3 py-2.5 min-w-0">
+        {/* Title */}
+        <span className="flex-1 min-w-0 text-[13px] font-medium text-gray-800 truncate">{req.title}</span>
+
+        {/* Meta row */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <StatusBadge status={req.status} size="sm" />
+
+          <div className="hidden sm:flex items-center gap-2.5">
+            <PriorityBadge priority={req.priority} size="sm" />
+
+            <UserAvatar user={req.assigned_to} size="sm" />
+
+            {req.due_date && (
+              <div className="flex items-center gap-1 text-[11px] text-gray-400 whitespace-nowrap">
+                <Calendar size={11} />
+                {formatDate(req.due_date)}
+              </div>
+            )}
+
+            {req.tags && req.tags.length > 0 && (
+              <div className="flex items-center gap-1">
+                {req.tags.slice(0, 2).map((t) => (
+                  <span
+                    key={t.id}
+                    className="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                    style={{ backgroundColor: t.color + '18', color: t.color }}
+                  >
+                    {t.name}
+                  </span>
+                ))}
+                {req.tags.length > 2 && (
+                  <span className="text-[10px] text-gray-400">+{req.tags.length - 2}</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {canCreate && (
+            <div
+              className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => onEdit(req)}
+                className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors"
+              >
+                <Pencil size={12} />
+              </button>
+              <button
+                onClick={() => onDelete(req)}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatusGroup({
+  status, reqs, canCreate, onOpen, onEdit, onDelete, onAddNew,
+}: {
+  status: Status
+  reqs: Requirement[]
+  canCreate: boolean
+  onOpen: (r: Requirement) => void
+  onEdit: (r: Requirement) => void
+  onDelete: (r: Requirement) => void
+  onAddNew: (s: Status) => void
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const cfg = STATUS_HEADER[status]
+
+  return (
+    <div className="mb-3">
+      {/* Group header */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-100/80 rounded-lg transition-colors group"
+      >
+        <span className="text-gray-400 transition-transform duration-150" style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}>
+          <ChevronDown size={14} />
+        </span>
+        <span className={cn('w-2 h-2 rounded-full shrink-0', cfg.dot)} />
+        <span className={cn('text-[12px] font-semibold uppercase tracking-wide', cfg.color)}>{cfg.label}</span>
+        <span className="ml-1 text-[11px] font-medium text-gray-400 bg-gray-100 group-hover:bg-gray-200 px-1.5 py-0.5 rounded-full transition-colors">
+          {reqs.length}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div className="mt-1 bg-white rounded-lg border border-gray-200/80 shadow-sm overflow-hidden animate-slide-down">
+          {reqs.length === 0 ? (
+            <div className="px-4 py-4 text-center text-[12px] text-gray-400">
+              No {cfg.label.toLowerCase()} requirements
+            </div>
+          ) : (
+            reqs.map((req) => (
+              <RequirementRow
+                key={req.id}
+                req={req}
+                canCreate={canCreate}
+                onOpen={onOpen}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            ))
+          )}
+
+          {canCreate && (
+            <button
+              onClick={() => onAddNew(status)}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-[12px] text-gray-400 hover:text-violet-600 hover:bg-violet-50/50 transition-colors border-t border-gray-100"
+            >
+              <Plus size={13} /> Add requirement
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function RequirementsPage() {
   const { user } = useAuthStore()
   const isDemoMode = useDemoStore((s) => s.isDemoMode)
   const [searchParams, setSearchParams] = useSearchParams()
-  const navigate = useNavigate()
 
   const [showCreate, setShowCreate] = useState(false)
+  const [createStatus, setCreateStatus] = useState<Status | undefined>()
   const [selectedReq, setSelectedReq] = useState<Requirement | null>(null)
   const [editReq, setEditReq] = useState<Requirement | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
 
   const canCreate = user?.role === 'admin' || user?.role === 'editor'
 
@@ -35,39 +200,31 @@ export default function RequirementsPage() {
     tag: searchParams.get('tag') || undefined,
     assignee: searchParams.get('assignee') || undefined,
     search: searchParams.get('search') || undefined,
-    sort: searchParams.get('sort') || 'created_at',
-    dir: (searchParams.get('dir') as 'asc' | 'desc') || 'desc',
-    page: Number(searchParams.get('page') || 1),
-    limit: 20,
+    sort: 'created_at',
+    dir: 'desc',
+    limit: 200,
   }
 
-  const reqQuery = useRequirementsQuery(filters)
+  const reqQuery  = useRequirementsQuery(filters)
   const tagsQuery = useTagsQuery()
   const usersQuery = useUsersQuery()
   const deleteReq = useDeleteRequirement()
 
   const { data, isLoading } = useQuery(reqQuery)
-  const { data: tags } = useQuery(tagsQuery)
-  const { data: users } = useQuery(usersQuery)
+  const { data: tags }      = useQuery(tagsQuery)
+  const { data: users }     = useQuery(usersQuery)
 
   const setFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams)
     if (value) params.set(key, value)
     else params.delete(key)
-    params.delete('page')
     setSearchParams(params)
   }
 
-  const setSort = (field: string) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('sort', field)
-    params.set('dir', filters.sort === field && filters.dir === 'asc' ? 'desc' : 'asc')
-    setSearchParams(params)
-  }
+  const activeFilterCount = [filters.status, filters.priority, filters.tag, filters.assignee, filters.search].filter(Boolean).length
 
   const exportCSV = async () => {
     if (isDemoMode) {
-      // client-side CSV from demo data
       const reqs = data?.data || []
       const rows = [
         'ID,Title,Status,Priority,AssignedTo,DueDate,CreatedAt',
@@ -91,148 +248,148 @@ export default function RequirementsPage() {
     } catch { toast.error('Export failed') }
   }
 
-  const SortIcon = ({ field }: { field: string }) => {
-    if (filters.sort !== field) return null
-    return filters.dir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />
+  const allReqs = data?.data || []
+  const grouped = STATUS_ORDER.reduce((acc, s) => {
+    acc[s] = allReqs.filter((r) => r.status === s)
+    return acc
+  }, {} as Record<Status, Requirement[]>)
+
+  const handleDelete = (req: Requirement) => {
+    if (!confirm(`Delete "${req.title}"?`)) return
+    deleteReq(req.id).catch(() => toast.error('Failed to delete'))
   }
 
-  const reqs = data?.data || []
-  const total = data?.total || 0
-  const page = filters.page || 1
-  const totalPages = Math.ceil(total / (filters.limit || 20))
+  const handleAddNew = (status: Status) => {
+    setCreateStatus(status)
+    setShowCreate(true)
+  }
 
   return (
-    <div className="space-y-4 max-w-7xl">
+    <div className="max-w-5xl">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <input
-          type="text"
-          placeholder="Search..."
-          defaultValue={filters.search}
-          onChange={(e) => setFilter('search', e.target.value)}
-          className="px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48"
-        />
-        <select value={filters.status || ''} onChange={(e) => setFilter('status', e.target.value)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="review">Review</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <select value={filters.priority || ''} onChange={(e) => setFilter('priority', e.target.value)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Priorities</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <select value={filters.tag || ''} onChange={(e) => setFilter('tag', e.target.value)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Tags</option>
-          {tags?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        <select value={filters.assignee || ''} onChange={(e) => setFilter('assignee', e.target.value)} className="px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="">All Assignees</option>
-          {users?.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-        </select>
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <input
+            type="text"
+            placeholder="Search requirements..."
+            defaultValue={filters.search}
+            onChange={(e) => setFilter('search', e.target.value)}
+            className="px-3 py-1.5 text-[13px] bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all w-52 placeholder:text-gray-400"
+          />
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-gray-400">{total} results</span>
-          <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-md hover:bg-gray-50">
-            <Download size={14} /> CSV
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-[13px] border rounded-md transition-colors',
+              showFilters || activeFilterCount > 0
+                ? 'bg-violet-50 border-violet-200 text-violet-700'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <Filter size={13} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="bg-violet-600 text-white text-[10px] font-bold px-1 rounded-full leading-tight">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
-          <button onClick={() => navigate('/kanban')} className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-md hover:bg-gray-50">
-            <Columns3 size={14} /> Kanban
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] text-gray-400 mr-1">{allReqs.length} items</span>
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] bg-white border border-gray-200 text-gray-600 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            <Download size={13} /> Export
           </button>
           {canCreate && (
-            <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-md">
+            <button
+              onClick={() => { setCreateStatus(undefined); setShowCreate(true) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-violet-600 hover:bg-violet-700 text-white font-medium rounded-md transition-colors shadow-sm shadow-violet-600/20"
+            >
               <Plus size={14} /> New
             </button>
           )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 cursor-pointer hover:text-gray-900" onClick={() => setSort('title')}>
-                  <div className="flex items-center gap-1">Title <SortIcon field="title" /></div>
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 cursor-pointer hover:text-gray-900" onClick={() => setSort('priority')}>
-                  <div className="flex items-center gap-1">Priority <SortIcon field="priority" /></div>
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Assignee</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Tags</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 cursor-pointer hover:text-gray-900" onClick={() => setSort('due_date')}>
-                  <div className="flex items-center gap-1">Due <SortIcon field="due_date" /></div>
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 cursor-pointer hover:text-gray-900" onClick={() => setSort('created_at')}>
-                  <div className="flex items-center gap-1">Created <SortIcon field="created_at" /></div>
-                </th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full" /> Loading...
-                  </div>
-                </td></tr>
-              ) : reqs.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No requirements found</td></tr>
-              ) : (
-                reqs.map((req) => (
-                  <tr key={req.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedReq(req)}>
-                    <td className="px-4 py-3 max-w-xs">
-                      <span className="font-medium text-gray-900 line-clamp-1">{req.title}</span>
-                    </td>
-                    <td className="px-4 py-3"><StatusBadge status={req.status} size="sm" /></td>
-                    <td className="px-4 py-3"><PriorityBadge priority={req.priority} size="sm" /></td>
-                    <td className="px-4 py-3"><UserAvatar user={req.assigned_to} size="sm" showName /></td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {req.tags?.slice(0, 3).map((t) => (
-                          <span key={t.id} className="px-1.5 py-0.5 rounded-full text-[10px] font-medium" style={{ backgroundColor: t.color + '20', color: t.color }}>{t.name}</span>
-                        ))}
-                        {(req.tags?.length || 0) > 3 && <span className="text-xs text-gray-400">+{(req.tags?.length || 0) - 3}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(req.due_date)}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDate(req.created_at)}</td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      {canCreate && (
-                        <div className="flex items-center gap-1">
-                          <button onClick={() => setEditReq(req)} className="p-1 text-gray-400 hover:text-indigo-600 rounded"><Pencil size={13} /></button>
-                          <button
-                            onClick={() => { if (confirm('Delete this requirement?')) deleteReq(req.id).catch(() => toast.error('Failed to delete')) }}
-                            className="p-1 text-gray-400 hover:text-red-500 rounded"
-                          ><Trash2 size={13} /></button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Filter bar */}
+      {showFilters && (
+        <div className="flex items-center gap-2 mb-4 p-3 bg-white border border-gray-200 rounded-lg animate-slide-down flex-wrap">
+          <select value={filters.status || ''} onChange={(e) => setFilter('status', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
+            <option value="">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="review">Review</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select value={filters.priority || ''} onChange={(e) => setFilter('priority', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
+            <option value="">All Priorities</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <select value={filters.tag || ''} onChange={(e) => setFilter('tag', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
+            <option value="">All Tags</option>
+            {tags?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select value={filters.assignee || ''} onChange={(e) => setFilter('assignee', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
+            <option value="">All Assignees</option>
+            {users?.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+          </select>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => setSearchParams({})}
+              className="px-2.5 py-1.5 text-[13px] text-red-500 hover:bg-red-50 rounded-md transition-colors"
+            >
+              Clear all
+            </button>
+          )}
         </div>
+      )}
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-            <span className="text-xs text-gray-500">Page {page} of {totalPages}</span>
-            <div className="flex gap-2">
-              <button onClick={() => setFilter('page', String(page - 1))} disabled={page <= 1} className="px-3 py-1 text-xs border rounded hover:bg-white disabled:opacity-40">Previous</button>
-              <button onClick={() => setFilter('page', String(page + 1))} disabled={page >= totalPages} className="px-3 py-1 text-xs border rounded hover:bg-white disabled:opacity-40">Next</button>
+      {/* Content */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-10 skeleton rounded-lg" />
+          ))}
+        </div>
+      ) : (
+        <div>
+          {STATUS_ORDER.map((status) => (
+            <StatusGroup
+              key={status}
+              status={status}
+              reqs={grouped[status]}
+              canCreate={canCreate}
+              onOpen={setSelectedReq}
+              onEdit={setEditReq}
+              onDelete={handleDelete}
+              onAddNew={handleAddNew}
+            />
+          ))}
+          {allReqs.length === 0 && (
+            <div className="text-center py-16 text-gray-400">
+              <LayoutList size={32} className="mx-auto mb-3 text-gray-200" />
+              <p className="text-[14px] font-medium">No requirements found</p>
+              <p className="text-[13px] mt-1">
+                {activeFilterCount > 0 ? 'Try clearing your filters' : 'Create your first requirement to get started'}
+              </p>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      {showCreate && <RequirementModal onClose={() => setShowCreate(false)} />}
+      {showCreate && (
+        <RequirementModal
+          defaultStatus={createStatus}
+          onClose={() => { setShowCreate(false); setCreateStatus(undefined) }}
+        />
+      )}
       {editReq && <RequirementModal requirement={editReq} onClose={() => setEditReq(null)} />}
       {selectedReq && <RequirementPanel requirement={selectedReq} onClose={() => setSelectedReq(null)} />}
     </div>
