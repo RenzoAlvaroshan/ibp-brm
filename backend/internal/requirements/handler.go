@@ -26,24 +26,24 @@ func NewHandler(db *gorm.DB, cfg *config.Config, notif *notifications.Service) *
 }
 
 type CreateRequest struct {
-	Title        string     `json:"title" binding:"required"`
-	Description  string     `json:"description"`
-	Status       string     `json:"status"`
-	Priority     string     `json:"priority"`
-	AssignedToID *string    `json:"assigned_to_id"`
-	DueDate      *time.Time `json:"due_date"`
-	TagIDs       []string   `json:"tag_ids"`
+	Title        string   `json:"title" binding:"required"`
+	Description  string   `json:"description"`
+	Status       string   `json:"status"`
+	Priority     string   `json:"priority"`
+	AssignedToID *string  `json:"assigned_to_id"`
+	DueDate      *string  `json:"due_date"`
+	TagIDs       []string `json:"tag_ids"`
 }
 
 type UpdateRequest struct {
-	Title        *string    `json:"title"`
-	Description  *string    `json:"description"`
-	Status       *string    `json:"status"`
-	Priority     *string    `json:"priority"`
-	AssignedToID *string    `json:"assigned_to_id"`
-	DueDate      *time.Time `json:"due_date"`
-	TagIDs       []string   `json:"tag_ids"`
-	Position     *int       `json:"position"`
+	Title        *string  `json:"title"`
+	Description  *string  `json:"description"`
+	Status       *string  `json:"status"`
+	Priority     *string  `json:"priority"`
+	AssignedToID *string  `json:"assigned_to_id"`
+	DueDate      *string  `json:"due_date"`
+	TagIDs       []string `json:"tag_ids"`
+	Position     *int     `json:"position"`
 }
 
 type ReorderRequest struct {
@@ -135,7 +135,13 @@ func (h *Handler) Create(c *gin.Context) {
 		Status:      database.StatusDraft,
 		Priority:    database.PriorityMedium,
 		CreatedByID: currentUser.ID,
-		DueDate:     req.DueDate,
+	}
+
+	if req.DueDate != nil && *req.DueDate != "" {
+		t, err := time.Parse("2006-01-02", *req.DueDate)
+		if err == nil {
+			requirement.DueDate = &t
+		}
 	}
 
 	if req.Status != "" {
@@ -225,7 +231,11 @@ func (h *Handler) Update(c *gin.Context) {
 		updates["priority"] = *body.Priority
 	}
 	if body.DueDate != nil {
-		updates["due_date"] = body.DueDate
+		if *body.DueDate == "" {
+			updates["due_date"] = nil
+		} else if t, err := time.Parse("2006-01-02", *body.DueDate); err == nil {
+			updates["due_date"] = t
+		}
 	}
 	if body.Position != nil {
 		updates["position"] = *body.Position

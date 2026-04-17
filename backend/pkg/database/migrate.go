@@ -17,6 +17,8 @@ func Migrate(db *gorm.DB) {
 		&Comment{},
 		&ActivityLog{},
 		&Notification{},
+		&App{},
+		&Task{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
@@ -141,6 +143,15 @@ func Seed(db *gorm.DB) {
 		},
 	}
 	db.Create(&reqs)
+
+	apps := []App{
+		{ID: uuid.New(), Name: "SCOne", Description: "Supply Chain One — end-to-end supply chain management platform."},
+		{ID: uuid.New(), Name: "NCX EBIS", Description: "NCX Enterprise Business Intelligence System for analytics and reporting."},
+		{ID: uuid.New(), Name: "NCX Retail", Description: "NCX Retail platform for point-of-sale and inventory management."},
+		{ID: uuid.New(), Name: "EAI", Description: "Enterprise Application Integration middleware and message broker."},
+		{ID: uuid.New(), Name: "OSM", Description: "Order and Service Management platform."},
+	}
+	db.Create(&apps)
 
 	log.Println("Database seeded successfully")
 	log.Println("Default credentials:")

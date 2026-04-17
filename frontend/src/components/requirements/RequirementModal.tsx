@@ -5,23 +5,23 @@ import { z } from 'zod'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Requirement } from '@/types'
+import type { Requirement, Status, Priority } from '@/types'
 import { useTagsQuery, useUsersQuery, useCreateRequirement, useUpdateRequirement } from '@/hooks/useApi'
 
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  status: z.string().optional(),
-  priority: z.string().optional(),
+  status: z.enum(['draft', 'review', 'approved', 'rejected']).optional(),
+  priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
   assigned_to_id: z.string().optional(),
   due_date: z.string().optional(),
 })
-type FormData = z.infer<typeof schema>
+type RequirementFormValues = z.infer<typeof schema>
 
 interface Props {
   onClose: () => void
   requirement?: Requirement
-  defaultStatus?: string
+  defaultStatus?: Status
 }
 
 export default function RequirementModal({ onClose, requirement, defaultStatus }: Props) {
@@ -34,7 +34,7 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
   const { data: tags } = useQuery(tagsQuery)
   const { data: users } = useQuery(usersQuery)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<RequirementFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: requirement?.title || '',
@@ -52,7 +52,7 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
   const toggleTag = (id: string) =>
     setSelectedTags((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]))
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: RequirementFormValues) => {
     setSaving(true)
     try {
       const payload = { ...data, tag_ids: selectedTags }

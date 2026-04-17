@@ -1,6 +1,7 @@
 export type Role = 'admin' | 'editor' | 'viewer'
 export type Status = 'draft' | 'review' | 'approved' | 'rejected'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 
 export interface User {
   id: string
@@ -92,6 +93,28 @@ export interface AuthResponse {
 export interface ApiError {
   error: string
   code: string
+}
+
+export interface App {
+  id: string
+  name: string
+  description: string
+  users?: User[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Task {
+  id: string
+  requirement_id: string
+  title: string
+  description: string
+  status: TaskStatus
+  target_date?: string
+  app_id?: string
+  app?: App
+  created_at: string
+  updated_at: string
 }
 
 export interface RequirementFilters {

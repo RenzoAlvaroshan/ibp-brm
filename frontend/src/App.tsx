@@ -7,6 +7,7 @@ import RequirementsPage from '@/pages/RequirementsPage'
 import KanbanPage from '@/pages/KanbanPage'
 import SettingsPage from '@/pages/SettingsPage'
 import TagsPage from '@/pages/TagsPage'
+import AppsPage from '@/pages/AppsPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="requirements" element={<RequirementsPage />} />
           <Route path="kanban" element={<KanbanPage />} />
           <Route path="tags" element={<TagsPage />} />
+          <Route path="apps" element={<AppsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
