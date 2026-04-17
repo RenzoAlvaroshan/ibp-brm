@@ -158,16 +158,17 @@ func (a *App) BeforeCreate(tx *gorm.DB) error {
 }
 
 type Task struct {
-	ID            uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	RequirementID uuid.UUID  `gorm:"type:uuid;not null" json:"requirement_id"`
-	Title         string     `gorm:"not null" json:"title"`
-	Description   string     `gorm:"type:text" json:"description"`
-	Status        TaskStatus `gorm:"type:varchar(20);default:'todo'" json:"status"`
-	TargetDate    *time.Time `json:"target_date"`
-	AppID         *uuid.UUID `gorm:"type:uuid" json:"app_id"`
-	App           *App       `gorm:"foreignKey:AppID" json:"app,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID            uuid.UUID    `gorm:"type:uuid;primaryKey" json:"id"`
+	RequirementID uuid.UUID    `gorm:"type:uuid;not null" json:"requirement_id"`
+	Requirement   *Requirement `gorm:"foreignKey:RequirementID" json:"requirement,omitempty"`
+	Title         string       `gorm:"not null" json:"title"`
+	Description   string       `gorm:"type:text" json:"description"`
+	Status        TaskStatus   `gorm:"type:varchar(20);default:'todo'" json:"status"`
+	TargetDate    *time.Time   `json:"target_date"`
+	AppID         *uuid.UUID   `gorm:"type:uuid" json:"app_id"`
+	App           *App         `gorm:"foreignKey:AppID" json:"app,omitempty"`
+	CreatedAt     time.Time    `json:"created_at"`
+	UpdatedAt     time.Time    `json:"updated_at"`
 }
 
 func (t *Task) BeforeCreate(tx *gorm.DB) error {

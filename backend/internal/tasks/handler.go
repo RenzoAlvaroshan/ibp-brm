@@ -38,7 +38,25 @@ type UpdateTaskRequest struct {
 func (h *Handler) List(c *gin.Context) {
 	reqID := c.Param("id")
 	var tasks []database.Task
-	h.db.Preload("App").Preload("App.Users").Where("requirement_id = ?", reqID).Order("created_at ASC").Find(&tasks)
+	h.db.Preload("App").Where("requirement_id = ?", reqID).Order("created_at ASC").Find(&tasks)
+	c.JSON(http.StatusOK, tasks)
+}
+
+func (h *Handler) ListAll(c *gin.Context) {
+	var tasks []database.Task
+	query := h.db.Preload("App").Preload("Requirement")
+
+	if status := c.Query("status"); status != "" {
+		query = query.Where("tasks.status = ?", status)
+	}
+	if appID := c.Query("app_id"); appID != "" {
+		query = query.Where("tasks.app_id = ?", appID)
+	}
+	if search := c.Query("search"); search != "" {
+		query = query.Where("tasks.title ILIKE ?", "%"+search+"%")
+	}
+
+	query.Order("target_date ASC NULLS LAST, tasks.created_at ASC").Find(&tasks)
 	c.JSON(http.StatusOK, tasks)
 }
 

@@ -107,6 +107,7 @@ export interface App {
 export interface Task {
   id: string
   requirement_id: string
+  requirement?: Requirement
   title: string
   description: string
   status: TaskStatus

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, ListChecks, Columns3, Tag, Settings,
-  ChevronLeft, ChevronRight, Bell, LogOut, AppWindow,
+  ChevronLeft, ChevronRight, Bell, LogOut, AppWindow, CheckSquare,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/dashboard',    icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/requirements', icon: ListChecks,       label: 'Requirements' },
   { to: '/kanban',       icon: Columns3,         label: 'Kanban' },
+  { to: '/tasks',        icon: CheckSquare,      label: 'Tasks' },
   { to: '/tags',         icon: Tag,              label: 'Tags' },
   { to: '/apps',         icon: AppWindow,        label: 'Apps' },
   { to: '/settings',     icon: Settings,         label: 'Settings' },

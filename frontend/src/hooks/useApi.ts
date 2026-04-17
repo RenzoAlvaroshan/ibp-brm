@@ -445,6 +445,13 @@ export function useRemoveAppUser() {
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
+export function useAllTasksQuery(filters?: { status?: string; app_id?: string; search?: string }) {
+  return {
+    queryKey: ['tasks-all', filters],
+    queryFn: () => tasksApi.listAll(filters).then((r) => r.data),
+  }
+}
+
 export function useTasksQuery(requirementId: string) {
   return {
     queryKey: ['tasks', requirementId],

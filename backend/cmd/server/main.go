@@ -126,7 +126,8 @@ func main() {
 		appGroup.DELETE("/:id/users/:userId", middleware.RequireRole(database.RoleAdmin), appHandler.RemoveUser)
 	}
 
-	// Tasks (nested under requirements)
+	// Tasks
+	protected.GET("/tasks", taskHandler.ListAll)
 	reqs.GET("/:id/tasks", taskHandler.List)
 	reqs.POST("/:id/tasks", middleware.RequireRole(database.RoleAdmin, database.RoleEditor), taskHandler.Create)
 	protected.PUT("/tasks/:id", middleware.RequireRole(database.RoleAdmin, database.RoleEditor), taskHandler.Update)

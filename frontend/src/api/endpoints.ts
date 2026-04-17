@@ -101,6 +101,8 @@ export const appsApi = {
 
 // Tasks
 export const tasksApi = {
+  listAll: (params?: { status?: string; app_id?: string; search?: string }) =>
+    apiClient.get<Task[]>('/api/tasks', { params }),
   list: (requirementId: string) =>
     apiClient.get<Task[]>(`/api/requirements/${requirementId}/tasks`),
   create: (requirementId: string, data: Partial<Task> & { target_date?: string; app_id?: string }) =>
