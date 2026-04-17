@@ -16,12 +16,12 @@ const schema = z.object({
   assigned_to_id: z.string().optional(),
   due_date: z.string().optional(),
 })
-type FormData = z.infer<typeof schema>
+type RequirementFormValues = z.infer<typeof schema>
 
 interface Props {
   onClose: () => void
   requirement?: Requirement
-  defaultStatus?: string
+  defaultStatus?: Status
 }
 
 export default function RequirementModal({ onClose, requirement, defaultStatus }: Props) {
@@ -34,7 +34,7 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
   const { data: tags }  = useQuery(tagsQuery)
   const { data: users } = useQuery(usersQuery)
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<RequirementFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       title:           requirement?.title || '',
@@ -52,7 +52,7 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
   const toggleTag = (id: string) =>
     setSelectedTags((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id])
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: RequirementFormValues) => {
     setSaving(true)
     try {
       const payload = { ...data, tag_ids: selectedTags }

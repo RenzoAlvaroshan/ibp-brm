@@ -3,12 +3,14 @@ package main
 import (
 	"log"
 
+	"github.com/brm-app/backend/internal/apps"
 	"github.com/brm-app/backend/internal/auth"
 	"github.com/brm-app/backend/internal/comments"
 	"github.com/brm-app/backend/internal/dashboard"
 	"github.com/brm-app/backend/internal/notifications"
 	"github.com/brm-app/backend/internal/requirements"
 	"github.com/brm-app/backend/internal/tags"
+	"github.com/brm-app/backend/internal/tasks"
 	"github.com/brm-app/backend/internal/users"
 	"github.com/brm-app/backend/pkg/config"
 	"github.com/brm-app/backend/pkg/database"
@@ -43,6 +45,8 @@ func main() {
 	userHandler := users.NewHandler(db)
 	dashHandler := dashboard.NewHandler(db)
 	notifHandler := notifications.NewHandler(db)
+	appHandler := apps.NewHandler(db)
+	taskHandler := tasks.NewHandler(db)
 
 	api := r.Group("/api")
 
@@ -110,6 +114,24 @@ func main() {
 		notifGroup.PATCH("/:id/read", notifHandler.MarkRead)
 		notifGroup.PATCH("/read-all", notifHandler.MarkAllRead)
 	}
+
+	// Apps
+	appGroup := protected.Group("/apps")
+	{
+		appGroup.GET("", appHandler.List)
+		appGroup.POST("", middleware.RequireRole(database.RoleAdmin), appHandler.Create)
+		appGroup.PUT("/:id", middleware.RequireRole(database.RoleAdmin), appHandler.Update)
+		appGroup.DELETE("/:id", middleware.RequireRole(database.RoleAdmin), appHandler.Delete)
+		appGroup.POST("/:id/users", middleware.RequireRole(database.RoleAdmin), appHandler.AddUser)
+		appGroup.DELETE("/:id/users/:userId", middleware.RequireRole(database.RoleAdmin), appHandler.RemoveUser)
+	}
+
+	// Tasks
+	protected.GET("/tasks", taskHandler.ListAll)
+	reqs.GET("/:id/tasks", taskHandler.List)
+	reqs.POST("/:id/tasks", middleware.RequireRole(database.RoleAdmin, database.RoleEditor), taskHandler.Create)
+	protected.PUT("/tasks/:id", middleware.RequireRole(database.RoleAdmin, database.RoleEditor), taskHandler.Update)
+	protected.DELETE("/tasks/:id", middleware.RequireRole(database.RoleAdmin, database.RoleEditor), taskHandler.Delete)
 
 	log.Printf("Server starting on port %s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {

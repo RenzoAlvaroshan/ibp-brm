@@ -1,5 +1,7 @@
 import { apiClient } from './client'
 import type {
+  ActivityLog,
+  App,
   AuthResponse,
   Comment,
   DashboardMetrics,
@@ -8,6 +10,7 @@ import type {
   Requirement,
   RequirementFilters,
   Tag,
+  Task,
   User,
 } from '@/types'
 
@@ -56,7 +59,7 @@ export const commentsApi = {
     apiClient.post<Comment>(`/api/requirements/${requirementId}/comments`, { body }),
   delete: (id: string) => apiClient.delete(`/api/comments/${id}`),
   activity: (requirementId: string) =>
-    apiClient.get(`/api/requirements/${requirementId}/activity`),
+    apiClient.get<ActivityLog[]>(`/api/requirements/${requirementId}/activity`),
 }
 
 // Tags
@@ -80,6 +83,33 @@ export const usersApi = {
 export const dashboardApi = {
   metrics: () => apiClient.get<DashboardMetrics>('/api/dashboard/metrics'),
   myRequirements: () => apiClient.get<Requirement[]>('/api/dashboard/my-requirements'),
+}
+
+// Apps
+export const appsApi = {
+  list: () => apiClient.get<App[]>('/api/apps'),
+  create: (data: { name: string; description: string }) =>
+    apiClient.post<App>('/api/apps', data),
+  update: (id: string, data: { name?: string; description?: string }) =>
+    apiClient.put<App>(`/api/apps/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/api/apps/${id}`),
+  addUser: (id: string, user_id: string) =>
+    apiClient.post<App>(`/api/apps/${id}/users`, { user_id }),
+  removeUser: (id: string, userId: string) =>
+    apiClient.delete<App>(`/api/apps/${id}/users/${userId}`),
+}
+
+// Tasks
+export const tasksApi = {
+  listAll: (params?: { status?: string; app_id?: string; search?: string }) =>
+    apiClient.get<Task[]>('/api/tasks', { params }),
+  list: (requirementId: string) =>
+    apiClient.get<Task[]>(`/api/requirements/${requirementId}/tasks`),
+  create: (requirementId: string, data: Partial<Task> & { target_date?: string; app_id?: string }) =>
+    apiClient.post<Task>(`/api/requirements/${requirementId}/tasks`, data),
+  update: (id: string, data: Partial<Task> & { target_date?: string; app_id?: string }) =>
+    apiClient.put<Task>(`/api/tasks/${id}`, data),
+  delete: (id: string) => apiClient.delete(`/api/tasks/${id}`),
 }
 
 // Notifications

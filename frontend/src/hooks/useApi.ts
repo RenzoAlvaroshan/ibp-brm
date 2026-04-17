@@ -7,8 +7,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuid } from 'uuid'
 import { useDemoStore } from '@/store/demo'
 import { useAuthStore } from '@/store/auth'
-import { requirementsApi, tagsApi, commentsApi } from '@/api/endpoints'
-import type { Requirement, Tag, Comment, RequirementFilters } from '@/types'
+import { requirementsApi, tagsApi, commentsApi, tasksApi, appsApi } from '@/api/endpoints'
+import type { Requirement, Tag, Comment, RequirementFilters, Task, App } from '@/types'
 import {
   mockMetrics, mockNotifications, mockUsers, mockActivity,
 } from '@/api/mockData'
@@ -223,6 +223,20 @@ export function useDeleteTag() {
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
 
+export function useActivityQuery(requirementId: string) {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  if (!isDemoMode) {
+    return {
+      queryKey: ['activity', requirementId],
+      queryFn: () => commentsApi.activity(requirementId).then((r) => r.data),
+    }
+  }
+  return {
+    queryKey: ['activity', requirementId, 'demo'],
+    queryFn: async () => mockActivity.filter((a) => a.requirement_id === requirementId),
+  }
+}
+
 export function useCreateComment() {
   const isDemoMode = useDemoStore((s) => s.isDemoMode)
   const addComment = useDemoStore((s) => s.addComment)
@@ -234,6 +248,7 @@ export function useCreateComment() {
       if (!isDemoMode) {
         const res = await commentsApi.create(requirementId, body)
         qc.invalidateQueries({ queryKey: ['requirement', requirementId] })
+        qc.invalidateQueries({ queryKey: ['activity', requirementId] })
         return res.data
       }
       const now = new Date().toISOString()
@@ -358,4 +373,123 @@ export function useUsersQuery() {
     }
   }
   return { queryKey: ['users-list', 'demo'], queryFn: async () => mockUsers }
+}
+
+// ─── Apps ─────────────────────────────────────────────────────────────────────
+
+export function useAppsQuery() {
+  return {
+    queryKey: ['apps'],
+    queryFn: () => appsApi.list().then((r) => r.data),
+  }
+}
+
+export function useCreateApp() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (data: { name: string; description: string }) => {
+      const res = await appsApi.create(data)
+      qc.invalidateQueries({ queryKey: ['apps'] })
+      return res.data
+    },
+    [qc]
+  )
+}
+
+export function useUpdateApp() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (id: string, data: { name?: string; description?: string }) => {
+      const res = await appsApi.update(id, data)
+      qc.invalidateQueries({ queryKey: ['apps'] })
+      return res.data
+    },
+    [qc]
+  )
+}
+
+export function useDeleteApp() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (id: string) => {
+      await appsApi.delete(id)
+      qc.invalidateQueries({ queryKey: ['apps'] })
+    },
+    [qc]
+  )
+}
+
+export function useAddAppUser() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (appId: string, userId: string) => {
+      const res = await appsApi.addUser(appId, userId)
+      qc.invalidateQueries({ queryKey: ['apps'] })
+      return res.data
+    },
+    [qc]
+  )
+}
+
+export function useRemoveAppUser() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (appId: string, userId: string) => {
+      const res = await appsApi.removeUser(appId, userId)
+      qc.invalidateQueries({ queryKey: ['apps'] })
+      return res.data
+    },
+    [qc]
+  )
+}
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+export function useAllTasksQuery(filters?: { status?: string; app_id?: string; search?: string }) {
+  return {
+    queryKey: ['tasks-all', filters],
+    queryFn: () => tasksApi.listAll(filters).then((r) => r.data),
+  }
+}
+
+export function useTasksQuery(requirementId: string) {
+  return {
+    queryKey: ['tasks', requirementId],
+    queryFn: () => tasksApi.list(requirementId).then((r) => r.data),
+  }
+}
+
+export function useCreateTask() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (requirementId: string, data: Partial<Task> & { target_date?: string; app_id?: string }) => {
+      const res = await tasksApi.create(requirementId, data)
+      qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
+      return res.data
+    },
+    [qc]
+  )
+}
+
+export function useUpdateTask() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (id: string, requirementId: string, data: Partial<Task> & { target_date?: string; app_id?: string }) => {
+      const res = await tasksApi.update(id, data)
+      qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
+      return res.data
+    },
+    [qc]
+  )
+}
+
+export function useDeleteTask() {
+  const qc = useQueryClient()
+  return useCallback(
+    async (id: string, requirementId: string) => {
+      await tasksApi.delete(id)
+      qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
+    },
+    [qc]
+  )
 }
