@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Requirement, Tag, Comment, Task } from '@/types'
-import { mockRequirements, mockTags } from '@/api/mockData'
+import { mockRequirements, mockTags, mockTasks } from '@/api/mockData'
 
 interface DemoState {
   isDemoMode: boolean
@@ -28,10 +28,10 @@ export const useDemoStore = create<DemoState>()(
       isDemoMode: false,
       requirements: mockRequirements,
       tags: mockTags,
-      tasks: {},
+      tasks: mockTasks,
 
       setDemoMode: (v) =>
-        set({ isDemoMode: v, requirements: [...mockRequirements], tags: [...mockTags], tasks: {} }),
+        set({ isDemoMode: v, requirements: [...mockRequirements], tags: [...mockTags], tasks: { ...mockTasks } }),
 
       addRequirement: (r) =>
         set((s) => ({ requirements: [r, ...s.requirements] })),

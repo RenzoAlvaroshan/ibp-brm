@@ -168,6 +168,7 @@ type Task struct {
 	Title         string       `gorm:"not null" json:"title"`
 	Description   string       `gorm:"type:text" json:"description"`
 	Status        TaskStatus   `gorm:"type:varchar(20);default:'todo'" json:"status"`
+	StartDate     *time.Time   `json:"start_date"`
 	TargetDate    *time.Time   `json:"target_date"`
 	AppID         *uuid.UUID   `gorm:"type:uuid" json:"app_id"`
 	App           *App         `gorm:"foreignKey:AppID" json:"app,omitempty"`

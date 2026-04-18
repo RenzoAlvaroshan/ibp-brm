@@ -14,6 +14,7 @@ const schema = z.object({
   title:       z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   status:      z.enum(['todo', 'in_progress', 'done', 'blocked']).optional(),
+  start_date:  z.string().optional(),
   target_date: z.string().optional(),
   app_id:      z.string().optional(),
 })
@@ -47,6 +48,7 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
       title:       task?.title || '',
       description: task?.description || '',
       status:      task?.status || 'todo',
+      start_date:  task?.start_date  ? task.start_date.split('T')[0]  : '',
       target_date: task?.target_date ? task.target_date.split('T')[0] : '',
       app_id:      task?.app_id || '',
     },
@@ -66,6 +68,7 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
       const payload = {
         ...data,
         app_id:      data.app_id      || undefined,
+        start_date:  data.start_date  || undefined,
         target_date: data.target_date || undefined,
       }
       if (isEdit) {
@@ -129,18 +132,24 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
               />
             </div>
 
-            {/* Status + Target Date */}
+            {/* Status */}
+            <div>
+              <label className={labelCls}>Status</label>
+              <SingleSelect
+                value={status}
+                onChange={(v) => setValue('status', v as FormValues['status'])}
+                options={STATUS_OPTIONS}
+              />
+            </div>
+
+            {/* Start Date + Target Date */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Status</label>
-                <SingleSelect
-                  value={status}
-                  onChange={(v) => setValue('status', v as FormValues['status'])}
-                  options={STATUS_OPTIONS}
-                />
+                <label className={labelCls}>Start Date</label>
+                <input {...register('start_date')} type="date" className={inputCls} />
               </div>
               <div>
-                <label className={labelCls}>Target Date</label>
+                <label className={labelCls}>End Date</label>
                 <input {...register('target_date')} type="date" className={inputCls} />
               </div>
             </div>

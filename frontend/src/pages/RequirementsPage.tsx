@@ -282,6 +282,19 @@ export default function RequirementsPage() {
             className="px-3 py-1.5 text-[13px] bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all w-52 placeholder:text-gray-400"
           />
 
+          {/* Assigned to me quick filter */}
+          <button
+            onClick={() => setFilter('assignee', filters.assignee === user?.id ? '' : (user?.id ?? ''))}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-[13px] border rounded-md transition-colors whitespace-nowrap',
+              filters.assignee === user?.id
+                ? 'bg-violet-600 border-violet-600 text-white'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            My items
+          </button>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={cn(

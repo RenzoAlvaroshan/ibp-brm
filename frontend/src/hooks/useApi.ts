@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/auth'
 import { requirementsApi, tagsApi, commentsApi, tasksApi, appsApi } from '@/api/endpoints'
 import type { Requirement, Tag, Comment, RequirementFilters, Task } from '@/types'
 import {
-  mockMetrics, mockNotifications, mockUsers, mockActivity,
+  mockMetrics, mockNotifications, mockUsers, mockActivity, mockApps,
 } from '@/api/mockData'
 
 // ─── Requirements ─────────────────────────────────────────────────────────────
@@ -319,12 +319,17 @@ export function useDashboardQuery(filters?: import('@/types').DashboardFilters) 
       if (filters?.priorities?.length) reqs = reqs.filter((r) => filters.priorities!.includes(r.priority))
       if (filters?.tag_ids?.length)    reqs = reqs.filter((r) => r.tags?.some((t) => filters.tag_ids!.includes(t.id)))
 
+      const today = new Date().toISOString().split('T')[0]
+      const weekLater = new Date(Date.now() + 7 * 86_400_000).toISOString().split('T')[0]
+
       return {
         ...mockMetrics,
-        total: reqs.length,
-        approved: reqs.filter((r) => r.status === 'completed').length,
-        in_review: reqs.filter((r) => ['development', 'sit', 'uat'].includes(r.status)).length,
+        total:         reqs.length,
+        approved:      reqs.filter((r) => r.status === 'completed').length,
+        in_review:     reqs.filter((r) => ['development', 'sit', 'uat'].includes(r.status)).length,
         critical_open: reqs.filter((r) => r.priority === 'critical' && r.status !== 'completed').length,
+        overdue:       reqs.filter((r) => r.due_date && r.due_date < today + 'T00:00:00' && r.status !== 'completed').length,
+        due_this_week: reqs.filter((r) => r.due_date && r.due_date >= today + 'T00:00:00' && r.due_date <= weekLater + 'T23:59:59' && r.status !== 'completed').length,
         by_status: ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed'].map((s) => ({
           status: s as any,
           count: reqs.filter((r) => r.status === s).length,
@@ -393,6 +398,10 @@ export function useUsersQuery() {
 // ─── Apps ─────────────────────────────────────────────────────────────────────
 
 export function useAppsQuery() {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  if (isDemoMode) {
+    return { queryKey: ['apps', 'demo'], queryFn: async () => mockApps }
+  }
   return {
     queryKey: ['apps'],
     queryFn: () => appsApi.list().then((r) => r.data),
@@ -466,12 +475,21 @@ export function useAllTasksQuery(filters?: { status?: string; app_id?: string; s
     return {
       queryKey: ['tasks-all', filters, 'demo'],
       queryFn: async (): Promise<Task[]> => {
-        let tasks = Object.values(useDemoStore.getState().tasks).flat()
+        const state = useDemoStore.getState()
+        let tasks = Object.values(state.tasks).flat().map((t) => ({
+          ...t,
+          requirement: state.requirements.find((r) => r.id === t.requirement_id),
+          app: t.app_id ? mockApps.find((a) => a.id === t.app_id) : undefined,
+        }))
         if (filters?.status) tasks = tasks.filter((t) => t.status === filters.status)
         if (filters?.app_id) tasks = tasks.filter((t) => t.app_id === filters.app_id)
         if (filters?.search) {
           const s = filters.search.toLowerCase()
-          tasks = tasks.filter((t) => t.title.toLowerCase().includes(s))
+          tasks = tasks.filter((t) =>
+            t.title.toLowerCase().includes(s) ||
+            t.requirement?.title?.toLowerCase().includes(s) ||
+            t.app?.name?.toLowerCase().includes(s)
+          )
         }
         return tasks.sort((a, b) => {
           if (!a.target_date && !b.target_date) return 0
@@ -521,6 +539,7 @@ export function useCreateTask() {
         title: data.title || 'Untitled',
         description: data.description || '',
         status: (data.status as Task['status']) || 'todo',
+        start_date:  data.start_date  || undefined,
         target_date: data.target_date || undefined,
         app_id: data.app_id || undefined,
         created_at: now,
