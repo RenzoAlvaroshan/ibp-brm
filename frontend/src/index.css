@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -44,49 +44,102 @@
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 
-/* Animations */
+/* ─── Animations ──────────────────────────────────── */
+
 @keyframes slideInRight {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+  from { transform: translateX(28px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+@keyframes fadeInUp {
+  from { transform: translateY(6px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
 @keyframes scaleIn {
-  from { transform: scale(0.97); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
+  0%   { transform: scale(0.95); opacity: 0; }
+  65%  { transform: scale(1.01); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
 }
 @keyframes slideDown {
-  from { transform: translateY(-8px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  from { transform: translateY(-6px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+@keyframes dropZonePulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1; }
+}
+@keyframes cardLift {
+  from { transform: scale(1) rotate(0deg); }
+  to   { transform: scale(1.03) rotate(1deg); }
+}
 
-.animate-slide-in-right { animation: slideInRight 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
-.animate-fade-in        { animation: fadeIn 0.2s ease-out; }
-.animate-scale-in       { animation: scaleIn 0.15s ease-out; }
-.animate-slide-down     { animation: slideDown 0.15s ease-out; }
+.animate-slide-in-right { animation: slideInRight 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-in        { animation: fadeIn 0.18s ease-out both; }
+.animate-fade-in-up     { animation: fadeInUp 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-scale-in       { animation: scaleIn 0.22s cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+.animate-slide-down     { animation: slideDown 0.18s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-/* Priority left border for kanban cards */
+/* ─── Kanban ──────────────────────────────────────── */
+
+.kanban-column { min-height: 200px; }
+
+/* The placeholder card left behind while dragging */
+.kanban-ghost {
+  border-radius: 8px;
+  border: 2px dashed #e5e7eb;
+  background: #f9fafb;
+  min-height: 64px;
+  pointer-events: none;
+}
+
+/* Drop indicator pulse on empty columns */
+.drop-zone-pulse {
+  animation: dropZonePulse 1.4s ease-in-out infinite;
+}
+
+/* Card hover lift */
+.kanban-card-hover {
+  transition: transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 150ms ease,
+              opacity 150ms ease;
+}
+.kanban-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.09);
+}
+
+/* ─── Priority borders ───────────────────────────── */
+
 .card-critical { border-left: 3px solid #ef4444 !important; }
 .card-high     { border-left: 3px solid #f97316 !important; }
 .card-medium   { border-left: 3px solid #3b82f6 !important; }
 .card-low      { border-left: 3px solid #9ca3af !important; }
 
-/* Kanban */
-.kanban-column { min-height: 250px; }
+/* ─── Skeleton ───────────────────────────────────── */
 
-/* Skeleton loader */
 .skeleton {
   background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
-/* Row hover transition */
-.req-row { transition: background-color 0.1s ease; }
+/* ─── Row hover ──────────────────────────────────── */
+
+.req-row {
+  transition: background-color 0.12s ease;
+}
 .req-row:hover { background-color: #f9fafb; }
+
+/* ─── Focus rings ────────────────────────────────── */
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}

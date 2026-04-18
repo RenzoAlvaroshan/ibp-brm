@@ -3,12 +3,13 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  Plus, Download, ChevronDown, ChevronRight, Pencil, Trash2,
-  Calendar, User as UserIcon, Filter, SortAsc, LayoutList,
+  Plus, Download, ChevronDown, Pencil, Trash2,
+  Calendar, Filter, LayoutList,
 } from 'lucide-react'
 import {
   useRequirementsQuery, useTagsQuery, useUsersQuery, useDeleteRequirement,
 } from '@/hooks/useApi'
+import { SingleSelect, UserSelect } from '@/components/ui/Select'
 import type { Requirement, Status, Priority, RequirementFilters } from '@/types'
 import StatusBadge from '@/components/requirements/StatusBadge'
 import PriorityBadge from '@/components/requirements/PriorityBadge'
@@ -153,7 +154,7 @@ function StatusGroup({
       </button>
 
       {!collapsed && (
-        <div className="mt-1 bg-white rounded-lg border border-gray-200/80 shadow-sm overflow-hidden animate-slide-down">
+        <div className="mt-1 bg-white rounded-lg border border-gray-200/80 shadow-sm overflow-hidden animate-fade-in-up">
           {reqs.length === 0 ? (
             <div className="px-4 py-4 text-center text-[12px] text-gray-400">
               No {cfg.label.toLowerCase()} requirements
@@ -313,33 +314,48 @@ export default function RequirementsPage() {
 
       {/* Filter bar */}
       {showFilters && (
-        <div className="flex items-center gap-2 mb-4 p-3 bg-white border border-gray-200 rounded-lg animate-slide-down flex-wrap">
-          <select value={filters.status || ''} onChange={(e) => setFilter('status', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
-            <option value="">All Statuses</option>
-            <option value="todo">To Do</option>
-            <option value="requirement_gathering">Requirement Gathering</option>
-            <option value="development">Development</option>
-            <option value="sit">SIT</option>
-            <option value="uat">UAT</option>
-            <option value="d2p">D2P</option>
-            <option value="production_test">Production Test</option>
-            <option value="completed">Completed</option>
-          </select>
-          <select value={filters.priority || ''} onChange={(e) => setFilter('priority', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
-            <option value="">All Priorities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-          <select value={filters.tag || ''} onChange={(e) => setFilter('tag', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
-            <option value="">All Tags</option>
-            {tags?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <select value={filters.assignee || ''} onChange={(e) => setFilter('assignee', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
-            <option value="">All Assignees</option>
-            {users?.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-          </select>
+        <div className="flex items-center gap-2 mb-4 p-3 bg-white border border-gray-200 rounded-lg animate-fade-in-up flex-wrap">
+          <SingleSelect
+            value={filters.status || ''}
+            onChange={(v) => setFilter('status', v)}
+            options={[
+              { value: 'todo',                  label: 'To Do',           dot: '#9ca3af' },
+              { value: 'requirement_gathering', label: 'Req. Gathering',  dot: '#3b82f6' },
+              { value: 'development',           label: 'Development',     dot: '#6366f1' },
+              { value: 'sit',                   label: 'SIT',             dot: '#f59e0b' },
+              { value: 'uat',                   label: 'UAT',             dot: '#8b5cf6' },
+              { value: 'd2p',                   label: 'D2P',             dot: '#ec4899' },
+              { value: 'production_test',       label: 'Production Test', dot: '#f97316' },
+              { value: 'completed',             label: 'Completed',       dot: '#10b981' },
+            ]}
+            placeholder="All Statuses"
+            className="px-2.5 py-1.5 text-[13px]"
+          />
+          <SingleSelect
+            value={filters.priority || ''}
+            onChange={(v) => setFilter('priority', v)}
+            options={[
+              { value: 'critical', label: 'Critical', dot: '#ef4444' },
+              { value: 'high',     label: 'High',     dot: '#f97316' },
+              { value: 'medium',   label: 'Medium',   dot: '#3b82f6' },
+              { value: 'low',      label: 'Low',      dot: '#9ca3af' },
+            ]}
+            placeholder="All Priorities"
+            className="px-2.5 py-1.5 text-[13px]"
+          />
+          <SingleSelect
+            value={filters.tag || ''}
+            onChange={(v) => setFilter('tag', v)}
+            options={tags?.map((t) => ({ value: t.id, label: t.name, dot: t.color })) ?? []}
+            placeholder="All Tags"
+            className="px-2.5 py-1.5 text-[13px]"
+          />
+          <UserSelect
+            value={filters.assignee || ''}
+            onChange={(v) => setFilter('assignee', v)}
+            users={users}
+            className="px-2.5 py-1.5 text-[13px]"
+          />
           {activeFilterCount > 0 && (
             <button
               onClick={() => setSearchParams({})}

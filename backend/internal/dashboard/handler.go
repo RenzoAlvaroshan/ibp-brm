@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/brm-app/backend/pkg/database"
 	"github.com/gin-gonic/gin"
@@ -26,37 +27,52 @@ type PriorityCount struct {
 	Count    int64  `json:"count"`
 }
 
+// filteredBase returns a *gorm.DB with all active dashboard filters applied.
+func (h *Handler) filteredBase(c *gin.Context) *gorm.DB {
+	q := h.db.Model(&database.Requirement{})
+
+	if from := c.Query("from_date"); from != "" {
+		q = q.Where("requirements.created_at >= ?", from+" 00:00:00")
+	}
+	if to := c.Query("to_date"); to != "" {
+		q = q.Where("requirements.created_at <= ?", to+" 23:59:59")
+	}
+	if s := c.Query("statuses"); s != "" {
+		q = q.Where("requirements.status IN ?", strings.Split(s, ","))
+	}
+	if p := c.Query("priorities"); p != "" {
+		q = q.Where("requirements.priority IN ?", strings.Split(p, ","))
+	}
+	if t := c.Query("tag_ids"); t != "" {
+		q = q.Where(
+			"requirements.id IN (SELECT requirement_id FROM requirement_tags WHERE tag_id IN ?)",
+			strings.Split(t, ","),
+		)
+	}
+	return q
+}
+
 func (h *Handler) Metrics(c *gin.Context) {
+	base := h.filteredBase(c)
+
 	var total int64
-	h.db.Model(&database.Requirement{}).Count(&total)
+	base.Count(&total)
 
 	var byStatus []StatusCount
-	h.db.Model(&database.Requirement{}).
-		Select("status, COUNT(*) as count").
-		Group("status").
-		Scan(&byStatus)
+	base.Select("status, COUNT(*) as count").Group("status").Scan(&byStatus)
 
 	var byPriority []PriorityCount
-	h.db.Model(&database.Requirement{}).
-		Select("priority, COUNT(*) as count").
-		Group("priority").
-		Scan(&byPriority)
+	base.Select("priority, COUNT(*) as count").Group("priority").Scan(&byPriority)
 
 	var approved, inReview, criticalOpen int64
-	h.db.Model(&database.Requirement{}).Where("status = ?", "completed").Count(&approved)
-	h.db.Model(&database.Requirement{}).Where("status IN ?", []string{"development", "sit", "uat"}).Count(&inReview)
-	h.db.Model(&database.Requirement{}).Where("priority = ? AND status != ?", "critical", "completed").Count(&criticalOpen)
+	base.Where("status = ?", "completed").Count(&approved)
+	base.Where("status IN ?", []string{"development", "sit", "uat"}).Count(&inReview)
+	base.Where("priority = ? AND status != ?", "critical", "completed").Count(&criticalOpen)
 
 	var recentActivity []database.ActivityLog
 	h.db.Preload("Actor").Preload("Requirement").
 		Order("created_at DESC").Limit(10).
 		Find(&recentActivity)
-
-	// Include requirement title in activity
-	type ActivityWithTitle struct {
-		database.ActivityLog
-		RequirementTitle string `json:"requirement_title"`
-	}
 
 	activitiesWithTitles := make([]map[string]interface{}, 0)
 	for _, a := range recentActivity {
@@ -74,12 +90,12 @@ func (h *Handler) Metrics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"total":          total,
-		"approved":       approved,
-		"in_review":      inReview,
-		"critical_open":  criticalOpen,
-		"by_status":      byStatus,
-		"by_priority":    byPriority,
+		"total":           total,
+		"approved":        approved,
+		"in_review":       inReview,
+		"critical_open":   criticalOpen,
+		"by_status":       byStatus,
+		"by_priority":     byPriority,
 		"recent_activity": activitiesWithTitles,
 	})
 }

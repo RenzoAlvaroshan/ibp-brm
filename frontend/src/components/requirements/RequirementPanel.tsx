@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { X, Pencil, MessageSquare, Clock, Trash2, Send, CheckSquare, Plus, FileText, Calendar, Save } from 'lucide-react'
+import { X, Pencil, MessageSquare, Clock, Trash2, Send, CheckSquare, Plus, FileText, Calendar, Save, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Requirement, Task, TaskStatus, Status, Priority } from '@/types'
 import {
@@ -11,6 +11,7 @@ import {
 import StatusBadge from './StatusBadge'
 import PriorityBadge from './PriorityBadge'
 import UserAvatar from './UserAvatar'
+import { SingleSelect, UserSelect } from '@/components/ui/Select'
 import TaskModal from './TaskModal'
 import { formatDate, formatRelative, actionLabel } from '@/utils'
 import { useAuthStore } from '@/store/auth'
@@ -45,8 +46,7 @@ const PRIORITY_COLOR: Record<string, string> = {
   critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#9ca3af',
 }
 
-const selectCls = 'text-[12px] font-medium border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-gray-700 transition-all'
-const gridSelectCls = 'text-[13px] border border-gray-200 rounded-md px-2 py-1 bg-white w-full focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-gray-700 transition-all'
+const gridSelectCls = 'px-2 py-1 text-[13px] w-full'
 
 interface Props { requirement: Requirement; onClose: () => void }
 
@@ -194,9 +194,9 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
 
   return (
     <>
-      <div className="fixed inset-0 z-40 flex animate-fade-in">
-        <div className="flex-1 bg-black/20" onClick={onClose} />
-        <div className="w-[520px] bg-white h-full shadow-2xl flex flex-col animate-slide-in-right border-l border-gray-200">
+      <div className="fixed inset-0 z-40 flex animate-fade-in" onClick={onClose}>
+        <div className="flex-1 bg-black/15 backdrop-blur-[1px]" />
+        <div className="w-[520px] bg-white h-full shadow-2xl flex flex-col animate-slide-in-right border-l border-gray-200/80" onClick={(e) => e.stopPropagation()}>
 
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 shrink-0 min-h-[52px]">
@@ -250,15 +250,36 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
               <h2 className="text-[17px] font-semibold text-gray-900 leading-snug">{req.title}</h2>
             )}
 
+            {/* ID */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-gray-400 bg-gray-50 border border-gray-200 rounded-md px-2 py-1 select-all">
+                {req.id}
+              </span>
+              <button
+                type="button"
+                onClick={() => { navigator.clipboard.writeText(req.id); toast.success('ID copied') }}
+                className="p-1.5 rounded-md text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+                title="Copy ID"
+              >
+                <Copy size={13} />
+              </button>
+            </div>
+
             {/* Status + Priority */}
             {canEdit ? (
               <div className="flex items-center gap-2 flex-wrap">
-                <select value={form.status} onChange={(e) => set('status', e.target.value as Status)} className={selectCls}>
-                  {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-                <select value={form.priority} onChange={(e) => set('priority', e.target.value as Priority)} className={selectCls}>
-                  {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                <SingleSelect
+                  value={form.status}
+                  onChange={(v) => set('status', v as Status)}
+                  options={STATUS_OPTIONS}
+                  className="px-2 py-1 text-[12px]"
+                />
+                <SingleSelect
+                  value={form.priority}
+                  onChange={(v) => set('priority', v as Priority)}
+                  options={PRIORITY_OPTIONS}
+                  className="px-2 py-1 text-[12px]"
+                />
               </div>
             ) : (
               <div className="flex items-center gap-2 flex-wrap">
@@ -272,10 +293,12 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
               <div>
                 <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">Assignee</p>
                 {canEdit ? (
-                  <select value={form.assigned_to_id} onChange={(e) => set('assigned_to_id', e.target.value)} className={gridSelectCls}>
-                    <option value="">Unassigned</option>
-                    {users?.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                  </select>
+                  <UserSelect
+                    value={form.assigned_to_id}
+                    onChange={(v) => set('assigned_to_id', v)}
+                    users={users}
+                    className={gridSelectCls}
+                  />
                 ) : (
                   req.assigned_to
                     ? <UserAvatar user={req.assigned_to} showName />

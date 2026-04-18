@@ -118,6 +118,14 @@ export interface Task {
   updated_at: string
 }
 
+export interface DashboardFilters {
+  from_date?:  string
+  to_date?:    string
+  statuses?:   Status[]
+  priorities?: Priority[]
+  tag_ids?:    string[]
+}
+
 export interface RequirementFilters {
   status?: Status
   priority?: Priority

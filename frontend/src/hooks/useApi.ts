@@ -287,38 +287,55 @@ export function useDeleteComment() {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export function useDashboardQuery() {
+export function useDashboardQuery(filters?: import('@/types').DashboardFilters) {
   const isDemoMode = useDemoStore((s) => s.isDemoMode)
   const demoReqs = useDemoStore((s) => s.requirements)
 
+  const apiParams: Record<string, string | undefined> = {
+    from_date:  filters?.from_date,
+    to_date:    filters?.to_date,
+    statuses:   filters?.statuses?.length   ? filters.statuses.join(',')   : undefined,
+    priorities: filters?.priorities?.length ? filters.priorities.join(',') : undefined,
+    tag_ids:    filters?.tag_ids?.length    ? filters.tag_ids.join(',')    : undefined,
+  }
+
   if (!isDemoMode) {
     return {
-      queryKey: ['dashboard-metrics'],
+      queryKey: ['dashboard-metrics', filters],
       queryFn: async () => {
         const { dashboardApi } = await import('@/api/endpoints')
-        return dashboardApi.metrics().then((r) => r.data)
+        return dashboardApi.metrics(apiParams).then((r) => r.data)
       },
     }
   }
 
   return {
-    queryKey: ['dashboard-metrics', 'demo', demoReqs.length],
-    queryFn: async () => ({
-      ...mockMetrics,
-      total: demoReqs.length,
-      approved: demoReqs.filter((r) => r.status === 'completed').length,
-      in_review: demoReqs.filter((r) => r.status === 'development' || r.status === 'sit' || r.status === 'uat').length,
-      critical_open: demoReqs.filter((r) => r.priority === 'critical' && r.status !== 'completed').length,
-      by_status: ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed'].map((s) => ({
-        status: s as any,
-        count: demoReqs.filter((r) => r.status === s).length,
-      })),
-      by_priority: ['critical', 'high', 'medium', 'low'].map((p) => ({
-        priority: p as any,
-        count: demoReqs.filter((r) => r.priority === p).length,
-      })),
-      recent_activity: mockMetrics.recent_activity,
-    }),
+    queryKey: ['dashboard-metrics', 'demo', demoReqs.length, filters],
+    queryFn: async () => {
+      let reqs = useDemoStore.getState().requirements
+      if (filters?.from_date)        reqs = reqs.filter((r) => r.created_at >= filters.from_date! + 'T00:00:00')
+      if (filters?.to_date)          reqs = reqs.filter((r) => r.created_at <= filters.to_date! + 'T23:59:59')
+      if (filters?.statuses?.length)   reqs = reqs.filter((r) => filters.statuses!.includes(r.status))
+      if (filters?.priorities?.length) reqs = reqs.filter((r) => filters.priorities!.includes(r.priority))
+      if (filters?.tag_ids?.length)    reqs = reqs.filter((r) => r.tags?.some((t) => filters.tag_ids!.includes(t.id)))
+
+      return {
+        ...mockMetrics,
+        total: reqs.length,
+        approved: reqs.filter((r) => r.status === 'completed').length,
+        in_review: reqs.filter((r) => ['development', 'sit', 'uat'].includes(r.status)).length,
+        critical_open: reqs.filter((r) => r.priority === 'critical' && r.status !== 'completed').length,
+        by_status: ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed'].map((s) => ({
+          status: s as any,
+          count: reqs.filter((r) => r.status === s).length,
+        })),
+        by_priority: ['critical', 'high', 'medium', 'low'].map((p) => ({
+          priority: p as any,
+          count: reqs.filter((r) => r.priority === p).length,
+        })),
+        recent_activity: mockMetrics.recent_activity,
+      }
+    },
   }
 }
 

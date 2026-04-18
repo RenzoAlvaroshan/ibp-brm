@@ -81,7 +81,8 @@ export const usersApi = {
 
 // Dashboard
 export const dashboardApi = {
-  metrics: () => apiClient.get<DashboardMetrics>('/api/dashboard/metrics'),
+  metrics: (params?: Record<string, string | undefined>) =>
+    apiClient.get<DashboardMetrics>('/api/dashboard/metrics', { params }),
   myRequirements: () => apiClient.get<Requirement[]>('/api/dashboard/my-requirements'),
 }
 
