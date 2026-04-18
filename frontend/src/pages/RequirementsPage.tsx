@@ -270,7 +270,7 @@ export default function RequirementsPage() {
   }
 
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <div className="flex items-center gap-2 flex-1 min-w-0">

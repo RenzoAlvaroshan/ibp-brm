@@ -6,9 +6,11 @@ import { useAuthStore } from '@/store/auth'
 import { useDemoStore } from '@/store/demo'
 import UserAvatar from '@/components/requirements/UserAvatar'
 import type { Role } from '@/types'
-import { Zap, User, Lock, Users } from 'lucide-react'
+import { Zap, User, Lock, Users, Tag, AppWindow } from 'lucide-react'
+import TagsPage from './TagsPage'
+import AppsPage from './AppsPage'
 
-type Tab = 'profile' | 'team' | 'password'
+type Tab = 'profile' | 'team' | 'password' | 'tags' | 'apps'
 
 const ROLE_LABELS: Record<Role, string> = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' }
 const ROLE_COLORS: Record<Role, string> = {
@@ -78,7 +80,9 @@ export default function SettingsPage() {
   const tabs: { id: Tab; label: string; icon: typeof User; adminOnly?: boolean }[] = [
     { id: 'profile',  label: 'Profile',  icon: User },
     { id: 'password', label: 'Password', icon: Lock },
-    { id: 'team',     label: 'Team',     icon: Users, adminOnly: true },
+    { id: 'team',     label: 'Team',     icon: Users,     adminOnly: true },
+    { id: 'tags',     label: 'Tags',     icon: Tag,       adminOnly: true },
+    { id: 'apps',     label: 'Apps',     icon: AppWindow, adminOnly: true },
   ]
 
   const inputCls = 'w-full px-3 py-2 text-[13px] border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all'
@@ -86,7 +90,7 @@ export default function SettingsPage() {
   const btnCls   = 'px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-[13px] font-medium rounded-md disabled:opacity-50 transition-colors shadow-sm shadow-violet-600/20'
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-3xl space-y-5">
       <div>
         <h1 className="text-[18px] font-semibold text-gray-900">Settings</h1>
         <p className="text-[13px] text-gray-500 mt-0.5">Manage your account and workspace.</p>
@@ -166,6 +170,12 @@ export default function SettingsPage() {
           </button>
         </div>
       )}
+
+      {/* Tags tab */}
+      {tab === 'tags' && isAdmin && <TagsPage />}
+
+      {/* Apps tab */}
+      {tab === 'apps' && isAdmin && <AppsPage />}
 
       {/* Team tab */}
       {tab === 'team' && isAdmin && (

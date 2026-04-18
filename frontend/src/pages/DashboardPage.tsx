@@ -312,7 +312,7 @@ export default function DashboardPage() {
   }))
 
   return (
-    <div className="space-y-5 max-w-7xl">
+    <div className="space-y-5 w-full">
 
       {/* ── Filter bar ──────────────────────────────────────── */}
       <div className="space-y-2">
@@ -454,10 +454,18 @@ export default function DashboardPage() {
             <BarChart2 size={15} className="text-violet-500" />
             <h3 className="text-[13px] font-semibold text-gray-700">By Status</h3>
           </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={statusChartData} barSize={24} barCategoryGap="30%">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={statusChartData} barSize={24} barCategoryGap="30%" margin={{ bottom: 48 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-              <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 10, fill: '#9ca3af' }}
+                axisLine={false}
+                tickLine={false}
+                angle={-35}
+                textAnchor="end"
+                interval={0}
+              />
               <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f9fafb' }} />
               <Bar dataKey="count" radius={[5, 5, 0, 0]}>

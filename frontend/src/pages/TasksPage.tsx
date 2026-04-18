@@ -235,7 +235,7 @@ export default function TasksPage() {
   const totalActive = grouped.in_progress.length + grouped.blocked.length + grouped.todo.length
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-5 w-full">
 
       {/* Header */}
       <div>
