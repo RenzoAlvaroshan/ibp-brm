@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Requirement, Tag, Comment } from '@/types'
-import { mockRequirements, mockTags, mockComments } from '@/api/mockData'
+import type { Requirement, Tag, Comment, Task } from '@/types'
+import { mockRequirements, mockTags, mockTasks } from '@/api/mockData'
 
 interface DemoState {
   isDemoMode: boolean
   requirements: Requirement[]
   tags: Tag[]
+  tasks: Record<string, Task[]>
   setDemoMode: (v: boolean) => void
   addRequirement: (r: Requirement) => void
   updateRequirement: (id: string, patch: Partial<Requirement>) => void
@@ -16,6 +17,9 @@ interface DemoState {
   deleteTag: (id: string) => void
   addComment: (c: Comment) => void
   deleteComment: (id: string) => void
+  addTask: (t: Task) => void
+  updateTask: (id: string, requirementId: string, patch: Partial<Task>) => void
+  deleteTask: (id: string, requirementId: string) => void
 }
 
 export const useDemoStore = create<DemoState>()(
@@ -24,9 +28,10 @@ export const useDemoStore = create<DemoState>()(
       isDemoMode: false,
       requirements: mockRequirements,
       tags: mockTags,
+      tasks: mockTasks,
 
       setDemoMode: (v) =>
-        set({ isDemoMode: v, requirements: [...mockRequirements], tags: [...mockTags] }),
+        set({ isDemoMode: v, requirements: [...mockRequirements], tags: [...mockTags], tasks: { ...mockTasks } }),
 
       addRequirement: (r) =>
         set((s) => ({ requirements: [r, ...s.requirements] })),
@@ -71,7 +76,33 @@ export const useDemoStore = create<DemoState>()(
             comments: (r.comments || []).filter((c) => c.id !== id),
           })),
         })),
+
+      addTask: (t) =>
+        set((s) => ({
+          tasks: {
+            ...s.tasks,
+            [t.requirement_id]: [...(s.tasks[t.requirement_id] ?? []), t],
+          },
+        })),
+
+      updateTask: (id, requirementId, patch) =>
+        set((s) => ({
+          tasks: {
+            ...s.tasks,
+            [requirementId]: (s.tasks[requirementId] ?? []).map((t) =>
+              t.id === id ? { ...t, ...patch } : t
+            ),
+          },
+        })),
+
+      deleteTask: (id, requirementId) =>
+        set((s) => ({
+          tasks: {
+            ...s.tasks,
+            [requirementId]: (s.tasks[requirementId] ?? []).filter((t) => t.id !== id),
+          },
+        })),
     }),
-    { name: 'brm-demo' }
+    { name: 'brm-demo-v2', partialize: (state) => ({ isDemoMode: state.isDemoMode }) }
   )
 )

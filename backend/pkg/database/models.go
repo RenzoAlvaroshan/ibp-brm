@@ -17,10 +17,14 @@ const (
 	RoleEditor Role = "editor"
 	RoleViewer Role = "viewer"
 
-	StatusDraft    Status = "draft"
-	StatusReview   Status = "review"
-	StatusApproved Status = "approved"
-	StatusRejected Status = "rejected"
+	StatusTodo                Status = "todo"
+	StatusRequirementGathering Status = "requirement_gathering"
+	StatusDevelopment         Status = "development"
+	StatusSIT                 Status = "sit"
+	StatusUAT                 Status = "uat"
+	StatusD2P                 Status = "d2p"
+	StatusProductionTest      Status = "production_test"
+	StatusCompleted           Status = "completed"
 
 	PriorityCritical Priority = "critical"
 	PriorityHigh     Priority = "high"
@@ -164,6 +168,7 @@ type Task struct {
 	Title         string       `gorm:"not null" json:"title"`
 	Description   string       `gorm:"type:text" json:"description"`
 	Status        TaskStatus   `gorm:"type:varchar(20);default:'todo'" json:"status"`
+	StartDate     *time.Time   `json:"start_date"`
 	TargetDate    *time.Time   `json:"target_date"`
 	AppID         *uuid.UUID   `gorm:"type:uuid" json:"app_id"`
 	App           *App         `gorm:"foreignKey:AppID" json:"app,omitempty"`

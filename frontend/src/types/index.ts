@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'editor' | 'viewer'
-export type Status = 'draft' | 'review' | 'approved' | 'rejected'
+export type Status = 'todo' | 'requirement_gathering' | 'development' | 'sit' | 'uat' | 'd2p' | 'production_test' | 'completed'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 
@@ -74,13 +74,30 @@ export interface PaginatedResponse<T> {
   limit: number
 }
 
+export interface DashboardReqItem {
+  id: string
+  title: string
+  priority: Priority
+  status: Status
+  due_date?: string
+  assigned_to?: User
+}
+
 export interface DashboardMetrics {
   total: number
   approved: number
   in_review: number
   critical_open: number
-  by_status: { status: Status; count: number }[]
-  by_priority: { priority: Priority; count: number }[]
+  overdue: number
+  due_this_week: number
+  open_tasks: number
+  by_status:    { status: Status;    count: number }[]
+  by_priority:  { priority: Priority; count: number }[]
+  by_tag:       { tag_id: string; tag_name: string; color: string; count: number }[]
+  by_assignee:  { user_id: string; full_name: string; count: number }[]
+  throughput:   { week: string; count: number }[]
+  overdue_list:   DashboardReqItem[]
+  upcoming_list:  DashboardReqItem[]
   recent_activity: ActivityLog[]
 }
 
@@ -111,11 +128,20 @@ export interface Task {
   title: string
   description: string
   status: TaskStatus
+  start_date?: string
   target_date?: string
   app_id?: string
   app?: App
   created_at: string
   updated_at: string
+}
+
+export interface DashboardFilters {
+  from_date?:  string
+  to_date?:    string
+  statuses?:   Status[]
+  priorities?: Priority[]
+  tag_ids?:    string[]
 }
 
 export interface RequirementFilters {

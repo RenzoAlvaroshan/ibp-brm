@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import {
   DndContext, DragEndEvent, DragOverlay,
   DragStartEvent, PointerSensor, useSensor, useSensors,
-  closestCenter,
+  closestCenter, useDroppable,
+  defaultDropAnimationSideEffects, type DropAnimation,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -18,45 +19,42 @@ import RequirementPanel from '@/components/requirements/RequirementPanel'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/utils'
 
-const COLUMNS: Status[] = ['draft', 'review', 'approved', 'rejected']
+const COLUMNS: Status[] = ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed']
 
-const COLUMN_CONFIG: Record<Status, { label: string; color: string; bg: string; headerBg: string; dotColor: string }> = {
-  draft:    { label: 'Draft',     color: 'text-gray-600',   bg: 'bg-gray-50/80',     headerBg: 'bg-gray-100',   dotColor: '#9ca3af' },
-  review:   { label: 'In Review', color: 'text-amber-700',  bg: 'bg-amber-50/40',    headerBg: 'bg-amber-100',  dotColor: '#f59e0b' },
-  approved: { label: 'Approved',  color: 'text-emerald-700',bg: 'bg-emerald-50/40',  headerBg: 'bg-emerald-100',dotColor: '#10b981' },
-  rejected: { label: 'Rejected',  color: 'text-red-600',    bg: 'bg-red-50/40',      headerBg: 'bg-red-100',    dotColor: '#ef4444' },
+const COLUMN_CONFIG: Record<Status, { label: string; color: string; bg: string; dotColor: string; ringColor: string }> = {
+  todo:                 { label: 'To Do',          color: 'text-gray-600',   bg: 'bg-gray-50/80',    dotColor: '#9ca3af', ringColor: '#9ca3af' },
+  requirement_gathering:{ label: 'Req. Gathering', color: 'text-blue-700',   bg: 'bg-blue-50/40',    dotColor: '#3b82f6', ringColor: '#3b82f6' },
+  development:          { label: 'Development',    color: 'text-indigo-700', bg: 'bg-indigo-50/40',  dotColor: '#6366f1', ringColor: '#6366f1' },
+  sit:                  { label: 'SIT',            color: 'text-amber-700',  bg: 'bg-amber-50/40',   dotColor: '#f59e0b', ringColor: '#f59e0b' },
+  uat:                  { label: 'UAT',            color: 'text-violet-700', bg: 'bg-violet-50/40',  dotColor: '#8b5cf6', ringColor: '#8b5cf6' },
+  d2p:                  { label: 'D2P',            color: 'text-pink-700',   bg: 'bg-pink-50/40',    dotColor: '#ec4899', ringColor: '#ec4899' },
+  production_test:      { label: 'Prod. Test',     color: 'text-orange-700', bg: 'bg-orange-50/40',  dotColor: '#f97316', ringColor: '#f97316' },
+  completed:            { label: 'Completed',      color: 'text-emerald-700',bg: 'bg-emerald-50/40', dotColor: '#10b981', ringColor: '#10b981' },
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
   critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#9ca3af',
 }
 
-function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onClick: () => void; overlay?: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: req.id })
+const dropAnimation: DropAnimation = {
+  duration: 220,
+  easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: { active: { opacity: '0' } },
+  }),
+}
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-  }
+function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onClick: () => void; overlay?: boolean }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: req.id,
+    transition: { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+  })
 
   const priorityColor = PRIORITY_COLOR[req.priority] || '#9ca3af'
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={overlay ? { borderLeft: `3px solid ${priorityColor}` } : { ...style, borderLeft: `3px solid ${priorityColor}` }}
-      {...attributes}
-      {...listeners}
-      onClick={(e) => { e.stopPropagation(); onClick() }}
-      className={cn(
-        'bg-white rounded-lg border border-gray-200 p-3 cursor-pointer select-none group',
-        'hover:shadow-md hover:border-gray-300 transition-all duration-150',
-        overlay ? 'shadow-xl rotate-1 opacity-95' : ''
-      )}
-    >
+  const cardContent = (
+    <>
       <p className="text-[13px] font-medium text-gray-800 leading-snug line-clamp-2 mb-2.5">{req.title}</p>
-
       {req.tags && req.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2.5">
           {req.tags.slice(0, 3).map((t) => (
@@ -68,9 +66,11 @@ function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onCli
               {t.name}
             </span>
           ))}
+          {req.tags.length > 3 && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-400">+{req.tags.length - 3}</span>
+          )}
         </div>
       )}
-
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <UserAvatar user={req.assigned_to} size="sm" />
@@ -88,34 +88,90 @@ function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onCli
           </div>
         )}
       </div>
+    </>
+  )
+
+  if (overlay) {
+    return (
+      <div
+        style={{
+          borderLeft: `3px solid ${priorityColor}`,
+          transform: 'rotate(1.5deg) scale(1.03)',
+        }}
+        className="bg-white rounded-lg border border-gray-300 p-3 shadow-2xl cursor-grabbing select-none w-[260px]"
+      >
+        {cardContent}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        borderLeft: `3px solid ${priorityColor}`,
+      }}
+      {...attributes}
+      {...listeners}
+      onClick={(e) => { e.stopPropagation(); onClick() }}
+      className={cn(
+        'bg-white rounded-lg border border-gray-200 p-3 select-none group',
+        'kanban-card-hover',
+        isDragging
+          ? 'opacity-0 pointer-events-none'
+          : 'cursor-grab active:cursor-grabbing'
+      )}
+    >
+      {cardContent}
     </div>
   )
 }
 
 function KanbanColumn({
-  status, reqs, onCardClick, onAdd, canCreate,
+  status, reqs, onCardClick, onAdd, canCreate, isDraggingGlobal,
 }: {
   status: Status
   reqs: Requirement[]
   onCardClick: (r: Requirement) => void
   onAdd: (s: Status) => void
   canCreate: boolean
+  isDraggingGlobal: boolean
 }) {
   const cfg = COLUMN_CONFIG[status]
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status })
 
   return (
-    <div className={cn('flex flex-col rounded-xl border border-gray-200/80 min-w-[260px] flex-1 max-w-[300px] shadow-sm', cfg.bg)}>
+    <div
+      className={cn(
+        'flex flex-col rounded-xl min-w-[260px] flex-1 max-w-[300px]',
+        'transition-all duration-200',
+        cfg.bg,
+      )}
+      style={{
+        border: isOver
+          ? `2px solid ${cfg.ringColor}55`
+          : '1px solid rgba(229, 231, 235, 0.8)',
+        boxShadow: isOver
+          ? `0 0 0 3px ${cfg.ringColor}15, 0 8px 28px ${cfg.ringColor}18`
+          : '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-200/60">
         <div className="flex items-center gap-2">
           <span
-            className="w-2.5 h-2.5 rounded-full shrink-0"
-            style={{ backgroundColor: cfg.dotColor }}
+            className="w-2.5 h-2.5 rounded-full shrink-0 transition-transform duration-200"
+            style={{
+              backgroundColor: cfg.dotColor,
+              transform: isOver ? 'scale(1.25)' : 'scale(1)',
+            }}
           />
           <span className={cn('text-[12px] font-semibold uppercase tracking-wide', cfg.color)}>
             {cfg.label}
           </span>
-          <span className="text-[11px] font-semibold text-gray-400 bg-white/80 border border-gray-200 px-1.5 py-0.5 rounded-full">
+          <span className="text-[11px] font-semibold text-gray-400 bg-white/80 border border-gray-200 px-1.5 py-0.5 rounded-full transition-all duration-200">
             {reqs.length}
           </span>
         </div>
@@ -130,16 +186,48 @@ function KanbanColumn({
       </div>
 
       {/* Cards */}
-      <div className="flex-1 p-2.5 space-y-2 overflow-y-auto kanban-column">
+      <div
+        ref={setDropRef}
+        className={cn(
+          'flex-1 p-2.5 space-y-2 overflow-y-auto kanban-column',
+          'transition-colors duration-150',
+        )}
+      >
         <SortableContext items={reqs.map((r) => r.id)} strategy={verticalListSortingStrategy}>
           {reqs.map((r) => (
             <KanbanCard key={r.id} req={r} onClick={() => onCardClick(r)} />
           ))}
         </SortableContext>
 
+        {/* Drop indicator at bottom of non-empty column */}
+        {isOver && reqs.length > 0 && (
+          <div
+            className="h-0.5 rounded-full mx-1 transition-all duration-200"
+            style={{ backgroundColor: cfg.ringColor + '70' }}
+          />
+        )}
+
+        {/* Empty drop zone */}
         {reqs.length === 0 && (
-          <div className="flex items-center justify-center h-16 border-2 border-dashed border-gray-200 rounded-lg text-[12px] text-gray-400">
-            Drop here
+          <div
+            className={cn(
+              'flex flex-col items-center justify-center h-20 rounded-lg text-[12px]',
+              'border-2 border-dashed transition-all duration-200',
+              isDraggingGlobal && 'drop-zone-pulse',
+            )}
+            style={
+              isOver
+                ? { borderColor: cfg.ringColor + 'aa', backgroundColor: cfg.ringColor + '0c', color: cfg.ringColor }
+                : undefined
+            }
+          >
+            {!isOver && <span className="text-gray-300">Drop here</span>}
+            {isOver && (
+              <>
+                <span className="text-lg mb-0.5" style={{ color: cfg.ringColor }}>↓</span>
+                <span style={{ color: cfg.ringColor + 'cc' }}>Release to drop</span>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -163,8 +251,11 @@ export default function KanbanPage() {
   const [activeReq, setActiveReq] = useState<Requirement | null>(null)
   const [selectedReq, setSelectedReq] = useState<Requirement | null>(null)
   const [addToStatus, setAddToStatus] = useState<Status | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  )
 
   const reqsQuery = useRequirementsQuery({ limit: 200, sort: 'position', dir: 'asc' })
   const { data } = useQuery(reqsQuery)
@@ -172,12 +263,9 @@ export default function KanbanPage() {
 
   const allReqs = data?.data || []
 
-  const columns: Record<Status, Requirement[]> = {
-    draft:    allReqs.filter((r) => r.status === 'draft').sort((a, b) => a.position - b.position),
-    review:   allReqs.filter((r) => r.status === 'review').sort((a, b) => a.position - b.position),
-    approved: allReqs.filter((r) => r.status === 'approved').sort((a, b) => a.position - b.position),
-    rejected: allReqs.filter((r) => r.status === 'rejected').sort((a, b) => a.position - b.position),
-  }
+  const columns = Object.fromEntries(
+    COLUMNS.map((s) => [s, allReqs.filter((r) => r.status === s).sort((a, b) => a.position - b.position)])
+  ) as Record<Status, Requirement[]>
 
   const findColumn = useCallback((id: string): Status | null => {
     for (const status of COLUMNS) {
@@ -189,10 +277,12 @@ export default function KanbanPage() {
   const handleDragStart = (e: DragStartEvent) => {
     const req = allReqs.find((r) => r.id === e.active.id)
     setActiveReq(req || null)
+    setIsDragging(true)
   }
 
   const handleDragEnd = async (e: DragEndEvent) => {
     setActiveReq(null)
+    setIsDragging(false)
     const { active, over } = e
     if (!over) return
 
@@ -232,9 +322,20 @@ export default function KanbanPage() {
     }
   }
 
+  const handleDragCancel = () => {
+    setActiveReq(null)
+    setIsDragging(false)
+  }
+
   return (
     <div className="h-full -m-2">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
         <div className="flex gap-3 h-full overflow-x-auto px-2 py-2">
           {COLUMNS.map((status) => (
             <KanbanColumn
@@ -244,10 +345,11 @@ export default function KanbanPage() {
               onCardClick={setSelectedReq}
               onAdd={setAddToStatus}
               canCreate={canCreate}
+              isDraggingGlobal={isDragging}
             />
           ))}
         </div>
-        <DragOverlay>
+        <DragOverlay dropAnimation={dropAnimation}>
           {activeReq && <KanbanCard req={activeReq} onClick={() => {}} overlay />}
         </DragOverlay>
       </DndContext>

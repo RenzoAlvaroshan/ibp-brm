@@ -20,9 +20,10 @@ func NewHandler(db *gorm.DB) *Handler {
 }
 
 type CreateTaskRequest struct {
-	Title       string `json:"title" binding:"required"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
+	Title       string  `json:"title" binding:"required"`
+	Description string  `json:"description"`
+	Status      string  `json:"status"`
+	StartDate   *string `json:"start_date"`
 	TargetDate  *string `json:"target_date"`
 	AppID       *string `json:"app_id"`
 }
@@ -31,6 +32,7 @@ type UpdateTaskRequest struct {
 	Title       *string `json:"title"`
 	Description *string `json:"description"`
 	Status      *string `json:"status"`
+	StartDate   *string `json:"start_date"`
 	TargetDate  *string `json:"target_date"`
 	AppID       *string `json:"app_id"`
 }
@@ -38,7 +40,13 @@ type UpdateTaskRequest struct {
 func (h *Handler) List(c *gin.Context) {
 	reqID := c.Param("id")
 	var tasks []database.Task
-	h.db.Preload("App").Where("requirement_id = ?", reqID).Order("created_at ASC").Find(&tasks)
+	if err := h.db.Preload("App").Where("requirement_id = ?", reqID).Order("created_at ASC").Find(&tasks).Error; err != nil {
+		c.JSON(http.StatusOK, []database.Task{})
+		return
+	}
+	if tasks == nil {
+		tasks = []database.Task{}
+	}
 	c.JSON(http.StatusOK, tasks)
 }
 
@@ -88,6 +96,13 @@ func (h *Handler) Create(c *gin.Context) {
 
 	if req.Status != "" {
 		task.Status = database.TaskStatus(req.Status)
+	}
+
+	if req.StartDate != nil && *req.StartDate != "" {
+		t, err := time.Parse("2006-01-02", *req.StartDate)
+		if err == nil {
+			task.StartDate = &t
+		}
 	}
 
 	if req.TargetDate != nil && *req.TargetDate != "" {
@@ -141,6 +156,13 @@ func (h *Handler) Update(c *gin.Context) {
 	}
 	if req.Status != nil {
 		updates["status"] = *req.Status
+	}
+	if req.StartDate != nil {
+		if *req.StartDate == "" {
+			updates["start_date"] = nil
+		} else if t, err := time.Parse("2006-01-02", *req.StartDate); err == nil {
+			updates["start_date"] = t
+		}
 	}
 	if req.TargetDate != nil {
 		if *req.TargetDate == "" {

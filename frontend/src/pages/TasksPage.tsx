@@ -1,62 +1,216 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
-import { CalendarClock, Search, SlidersHorizontal } from 'lucide-react'
+import {
+  Search, CheckCircle2, Circle, Zap, XOctagon,
+  ChevronDown, FileText, AppWindow, CalendarRange,
+} from 'lucide-react'
 import { useAllTasksQuery, useAppsQuery } from '@/hooks/useApi'
-import { cn } from '@/utils'
-import type { TaskStatus } from '@/types'
+import { SingleSelect } from '@/components/ui/Select'
+import { cn, formatDate } from '@/utils'
+import type { Task, TaskStatus } from '@/types'
 
-const statusConfig: Record<TaskStatus, { label: string; color: string }> = {
-  todo:        { label: 'To Do',       color: 'bg-gray-100 text-gray-600' },
-  in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-700' },
-  done:        { label: 'Done',        color: 'bg-green-100 text-green-700' },
-  blocked:     { label: 'Blocked',     color: 'bg-red-100 text-red-700' },
+// ─── Status config ────────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<TaskStatus, {
+  label: string
+  icon: React.ElementType
+  dot: string
+  badgeBg: string
+  badgeText: string
+  headerText: string
+  headerBg: string
+}> = {
+  in_progress: {
+    label: 'In Progress', icon: Zap,
+    dot: '#6366f1', badgeBg: 'bg-violet-50', badgeText: 'text-violet-700',
+    headerText: 'text-violet-700', headerBg: 'bg-violet-50/60',
+  },
+  blocked: {
+    label: 'Blocked', icon: XOctagon,
+    dot: '#ef4444', badgeBg: 'bg-red-50', badgeText: 'text-red-600',
+    headerText: 'text-red-600', headerBg: 'bg-red-50/60',
+  },
+  todo: {
+    label: 'To Do', icon: Circle,
+    dot: '#9ca3af', badgeBg: 'bg-gray-100', badgeText: 'text-gray-600',
+    headerText: 'text-gray-600', headerBg: 'bg-gray-50',
+  },
+  done: {
+    label: 'Done', icon: CheckCircle2,
+    dot: '#10b981', badgeBg: 'bg-emerald-50', badgeText: 'text-emerald-700',
+    headerText: 'text-emerald-700', headerBg: 'bg-emerald-50/60',
+  },
 }
 
-const ALL = '__all__'
+const STATUS_ORDER: TaskStatus[] = ['in_progress', 'blocked', 'todo', 'done']
 
-function DeadlineBadge({ targetDate }: { targetDate?: string }) {
-  if (!targetDate) {
-    return <span className="text-xs text-gray-300 italic">No deadline</span>
-  }
+const STATUS_OPTIONS = [
+  { value: '__all__', label: 'All Statuses' },
+  { value: 'in_progress', label: 'In Progress', dot: '#6366f1' },
+  { value: 'blocked',     label: 'Blocked',     dot: '#ef4444' },
+  { value: 'todo',        label: 'To Do',        dot: '#9ca3af' },
+  { value: 'done',        label: 'Done',         dot: '#10b981' },
+]
 
+// ─── Deadline badge ───────────────────────────────────────────────────────────
+
+function DeadlineBadge({ targetDate, status }: { targetDate?: string; status: TaskStatus }) {
+  if (!targetDate || status === 'done') return null
   const days = differenceInCalendarDays(parseISO(targetDate), new Date())
   const label =
     days < 0  ? `${Math.abs(days)}d overdue` :
     days === 0 ? 'Due today' :
     days === 1 ? 'Due tomorrow' :
                  `${days}d left`
+  const cls =
+    days < 0  ? 'bg-red-50 text-red-600 border-red-200' :
+    days === 0 ? 'bg-orange-50 text-orange-600 border-orange-200' :
+    days <= 7  ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                 'bg-gray-50 text-gray-500 border-gray-200'
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0', cls)}>
+      {label}
+    </span>
+  )
+}
 
-  const color =
-    days < 0  ? 'text-red-600 font-semibold' :
-    days === 0 ? 'text-orange-500 font-semibold' :
-    days <= 7  ? 'text-yellow-600 font-medium' :
-                 'text-gray-500'
+// ─── Date range pill ──────────────────────────────────────────────────────────
 
-  const date = parseISO(targetDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+function DateRange({ startDate, targetDate }: { startDate?: string; targetDate?: string }) {
+  if (!startDate && !targetDate) return null
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-gray-400">
+      <CalendarRange size={10} className="shrink-0" />
+      {startDate ? formatDate(startDate) : '—'}
+      {' → '}
+      {targetDate ? formatDate(targetDate) : '—'}
+    </span>
+  )
+}
+
+// ─── Task card ────────────────────────────────────────────────────────────────
+
+function TaskCard({ task, dimmed }: { task: Task; dimmed?: boolean }) {
+  const cfg = STATUS_CONFIG[task.status]
+  const Icon = cfg.icon
 
   return (
-    <div className="text-right shrink-0">
-      <p className={cn('text-xs', color)}>{label}</p>
-      <p className="text-[10px] text-gray-400 mt-0.5">{date}</p>
+    <div className={cn(
+      'group flex items-start gap-4 px-4 py-3.5 hover:bg-gray-50/80 transition-colors',
+      dimmed && 'opacity-60',
+    )}>
+      {/* Status icon */}
+      <div className="shrink-0 mt-0.5">
+        <Icon size={15} style={{ color: cfg.dot }} strokeWidth={2} />
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start gap-2 justify-between">
+          <p className={cn(
+            'text-[13px] font-semibold leading-snug',
+            dimmed ? 'text-gray-500 line-through' : 'text-gray-900',
+          )}>
+            {task.title}
+          </p>
+          <DeadlineBadge targetDate={task.target_date} status={task.status} />
+        </div>
+
+        {task.description && (
+          <p className="text-[12px] text-gray-400 mt-0.5 line-clamp-1">{task.description}</p>
+        )}
+
+        {/* Meta pills */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          {task.requirement && (
+            <span className="inline-flex items-center gap-1 text-[11px] bg-violet-50 text-violet-700 border border-violet-200/80 px-2 py-0.5 rounded-md font-medium truncate max-w-[220px]">
+              <FileText size={9} className="shrink-0" />
+              {task.requirement.title}
+            </span>
+          )}
+          {task.app && (
+            <span className="inline-flex items-center gap-1 text-[11px] bg-blue-50 text-blue-700 border border-blue-200/80 px-2 py-0.5 rounded-md font-medium">
+              <AppWindow size={9} className="shrink-0" />
+              {task.app.name}
+            </span>
+          )}
+          <DateRange startDate={task.start_date} targetDate={task.target_date} />
+        </div>
+      </div>
     </div>
   )
 }
 
-export default function TasksPage() {
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>(ALL)
-  const [appFilter, setAppFilter] = useState<string>(ALL)
+// ─── Status group ─────────────────────────────────────────────────────────────
 
-  // Fetch with server-side filters (status, app_id) — search is client-side for instant response
+function StatusGroup({ status, tasks }: { status: TaskStatus; tasks: Task[] }) {
+  const [open, setOpen] = useState(status !== 'done')
+  const cfg = STATUS_CONFIG[status]
+  const Icon = cfg.icon
+  const isDone = status === 'done'
+
+  if (tasks.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden animate-fade-in-up">
+      {/* Group header */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'w-full flex items-center gap-2.5 px-4 py-3 border-b border-gray-100 transition-colors',
+          open ? cfg.headerBg : 'hover:bg-gray-50',
+        )}
+      >
+        <Icon size={14} style={{ color: cfg.dot }} strokeWidth={2.5} />
+        <span className={cn('text-[12px] font-semibold', cfg.headerText)}>{cfg.label}</span>
+        <span className={cn(
+          'text-[11px] font-bold px-1.5 py-0.5 rounded-full leading-none',
+          cfg.badgeBg, cfg.badgeText,
+        )}>
+          {tasks.length}
+        </span>
+        <ChevronDown
+          size={13}
+          className={cn('ml-auto text-gray-400 transition-transform duration-200', open && 'rotate-180')}
+        />
+      </button>
+
+      {/* Task list */}
+      {open && (
+        <div className="divide-y divide-gray-100/80">
+          {tasks.map((task) => (
+            <TaskCard key={task.id} task={task} dimmed={isDone} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+const ALL = '__all__'
+
+export default function TasksPage() {
+  const [search, setSearch]       = useState('')
+  const [statusFilter, setStatus] = useState(ALL)
+  const [appFilter, setApp]       = useState(ALL)
+
   const allTasksQuery = useAllTasksQuery({
     status: statusFilter !== ALL ? statusFilter : undefined,
-    app_id: appFilter !== ALL ? appFilter : undefined,
+    app_id: appFilter   !== ALL ? appFilter   : undefined,
   })
   const { data: tasks = [], isLoading } = useQuery(allTasksQuery)
 
   const appsQuery = useAppsQuery()
   const { data: apps = [] } = useQuery(appsQuery)
+
+  const appOptions = [
+    { value: ALL, label: 'All Apps' },
+    ...apps.map((a) => ({ value: a.id, label: a.name })),
+  ]
 
   const filtered = useMemo(() => {
     if (!search.trim()) return tasks
@@ -65,124 +219,72 @@ export default function TasksPage() {
       (t) =>
         t.title.toLowerCase().includes(s) ||
         t.description?.toLowerCase().includes(s) ||
-        t.requirement?.title?.toLowerCase().includes(s)
+        t.requirement?.title?.toLowerCase().includes(s) ||
+        t.app?.name?.toLowerCase().includes(s),
     )
   }, [tasks, search])
 
-  // Group by deadline proximity
-  const overdue  = filtered.filter((t) => t.target_date && differenceInCalendarDays(parseISO(t.target_date), new Date()) < 0)
-  const today    = filtered.filter((t) => t.target_date && differenceInCalendarDays(parseISO(t.target_date), new Date()) === 0)
-  const upcoming = filtered.filter((t) => t.target_date && differenceInCalendarDays(parseISO(t.target_date), new Date()) > 0)
-  const noDate   = filtered.filter((t) => !t.target_date)
+  const grouped = useMemo(() => {
+    const map: Record<TaskStatus, Task[]> = { todo: [], in_progress: [], done: [], blocked: [] }
+    for (const t of filtered) {
+      map[t.status]?.push(t)
+    }
+    return map
+  }, [filtered])
 
-  const groups = [
-    { label: 'Overdue',  items: overdue,  labelColor: 'text-red-600' },
-    { label: 'Due Today', items: today,   labelColor: 'text-orange-500' },
-    { label: 'Upcoming', items: upcoming, labelColor: 'text-gray-700' },
-    { label: 'No Deadline', items: noDate, labelColor: 'text-gray-400' },
-  ].filter((g) => g.items.length > 0)
+  const totalActive = grouped.in_progress.length + grouped.blocked.length + grouped.todo.length
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="space-y-5 max-w-4xl">
+
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
-        <p className="text-sm text-gray-500 mt-1">All tasks across requirements, ordered by closest deadline.</p>
+        <h1 className="text-[18px] font-semibold text-gray-900">Tasks</h1>
+        <p className="text-[13px] text-gray-400 mt-0.5">
+          {isLoading ? 'Loading…' : `${totalActive} active · ${grouped.done.length} completed`}
+        </p>
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-48">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-56">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tasks or requirements…"
-            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Search tasks, requirements, apps…"
+            className="w-full pl-8 pr-3 py-[7px] text-[13px] border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 transition-all placeholder:text-gray-400"
           />
         </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <SlidersHorizontal size={14} className="text-gray-400" />
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-sm border border-gray-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value={ALL}>All statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="done">Done</option>
-          </select>
-
-          <select
-            value={appFilter}
-            onChange={(e) => setAppFilter(e.target.value)}
-            className="text-sm border border-gray-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value={ALL}>All apps</option>
-            {apps.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
-        </div>
+        <SingleSelect
+          value={statusFilter}
+          onChange={setStatus}
+          options={STATUS_OPTIONS}
+          className="px-3 py-[7px] text-[13px] min-w-[140px]"
+        />
+        <SingleSelect
+          value={appFilter}
+          onChange={setApp}
+          options={appOptions}
+          className="px-3 py-[7px] text-[13px] min-w-[130px]"
+        />
       </div>
 
-      {/* Results */}
+      {/* Groups */}
       {isLoading ? (
-        <div className="text-center text-gray-400 text-sm py-12">Loading…</div>
+        <div className="space-y-3">
+          {[1,2,3].map((i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 h-[200px] skeleton" />
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center text-gray-400 text-sm py-12 bg-white rounded-xl border border-gray-200">
-          No tasks found.
+        <div className="bg-white rounded-xl border border-gray-200 py-16 text-center">
+          <p className="text-[13px] text-gray-400">No tasks match your filters.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {groups.map((group) => (
-            <div key={group.label}>
-              <div className="flex items-center gap-2 mb-2">
-                <CalendarClock size={13} className={group.labelColor} />
-                <span className={cn('text-xs font-semibold uppercase tracking-wide', group.labelColor)}>
-                  {group.label} ({group.items.length})
-                </span>
-              </div>
-
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden divide-y divide-gray-100">
-                {group.items.map((task) => (
-                  <div key={task.id} className="flex items-start gap-3 px-4 py-3">
-                    {/* Status dot */}
-                    <div className="pt-0.5 shrink-0">
-                      <span className={cn('inline-block text-[10px] font-medium px-2 py-0.5 rounded-full', statusConfig[task.status].color)}>
-                        {statusConfig[task.status].label}
-                      </span>
-                    </div>
-
-                    {/* Main content */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 leading-snug">{task.title}</p>
-                      {task.description && (
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{task.description}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        {task.requirement && (
-                          <span className="text-[10px] text-gray-400 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded truncate max-w-[200px]">
-                            {task.requirement.title}
-                          </span>
-                        )}
-                        {task.app && (
-                          <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-medium">
-                            {task.app.name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Deadline */}
-                    <DeadlineBadge targetDate={task.target_date} />
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="space-y-3">
+          {STATUS_ORDER.map((status) => (
+            <StatusGroup key={status} status={status} tasks={grouped[status]} />
           ))}
         </div>
       )}

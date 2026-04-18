@@ -7,10 +7,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const statusConfig: Record<Status, { label: string; color: string; bg: string; dot: string }> = {
-  draft:    { label: 'Draft',    color: 'text-gray-600',   bg: 'bg-gray-100',   dot: 'bg-gray-400' },
-  review:   { label: 'Review',   color: 'text-amber-700',  bg: 'bg-amber-50',   dot: 'bg-amber-500' },
-  approved: { label: 'Approved', color: 'text-green-700',  bg: 'bg-green-50',   dot: 'bg-green-500' },
-  rejected: { label: 'Rejected', color: 'text-red-700',    bg: 'bg-red-50',     dot: 'bg-red-500' },
+  todo:                 { label: 'To Do',           color: 'text-gray-600',   bg: 'bg-gray-100',   dot: 'bg-gray-400' },
+  requirement_gathering:{ label: 'Req. Gathering',  color: 'text-blue-700',   bg: 'bg-blue-50',    dot: 'bg-blue-400' },
+  development:          { label: 'Development',     color: 'text-indigo-700', bg: 'bg-indigo-50',  dot: 'bg-indigo-400' },
+  sit:                  { label: 'SIT',             color: 'text-amber-700',  bg: 'bg-amber-50',   dot: 'bg-amber-400' },
+  uat:                  { label: 'UAT',             color: 'text-violet-700', bg: 'bg-violet-50',  dot: 'bg-violet-400' },
+  d2p:                  { label: 'D2P',             color: 'text-pink-700',   bg: 'bg-pink-50',    dot: 'bg-pink-400' },
+  production_test:      { label: 'Production Test', color: 'text-orange-700', bg: 'bg-orange-50',  dot: 'bg-orange-400' },
+  completed:            { label: 'Completed',       color: 'text-green-700',  bg: 'bg-green-50',   dot: 'bg-green-500' },
 }
 
 export const priorityConfig: Record<Priority, { label: string; color: string; bg: string; hex: string }> = {
