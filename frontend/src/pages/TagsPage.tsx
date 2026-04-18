@@ -52,7 +52,7 @@ export default function TagsPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-3xl space-y-5">
       <div>
         <h1 className="text-[18px] font-semibold text-gray-900">Tags</h1>
         <p className="text-[13px] text-gray-500 mt-0.5">Create and manage tags to categorize requirements.</p>

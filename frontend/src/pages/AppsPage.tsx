@@ -96,7 +96,7 @@ export default function AppsPage() {
   const assignedUserIds = new Set(currentManagingApp?.users?.map((u) => u.id) ?? [])
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="w-full space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-gray-900">Applications</h1>
         <p className="text-sm text-gray-500 mt-1">Manage apps that can be linked to tasks and assigned to users.</p>
