@@ -17,10 +17,14 @@ const (
 	RoleEditor Role = "editor"
 	RoleViewer Role = "viewer"
 
-	StatusDraft    Status = "draft"
-	StatusReview   Status = "review"
-	StatusApproved Status = "approved"
-	StatusRejected Status = "rejected"
+	StatusTodo                Status = "todo"
+	StatusRequirementGathering Status = "requirement_gathering"
+	StatusDevelopment         Status = "development"
+	StatusSIT                 Status = "sit"
+	StatusUAT                 Status = "uat"
+	StatusD2P                 Status = "d2p"
+	StatusProductionTest      Status = "production_test"
+	StatusCompleted           Status = "completed"
 
 	PriorityCritical Priority = "critical"
 	PriorityHigh     Priority = "high"

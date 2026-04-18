@@ -43,9 +43,9 @@ func (h *Handler) Metrics(c *gin.Context) {
 		Scan(&byPriority)
 
 	var approved, inReview, criticalOpen int64
-	h.db.Model(&database.Requirement{}).Where("status = ?", "approved").Count(&approved)
-	h.db.Model(&database.Requirement{}).Where("status = ?", "review").Count(&inReview)
-	h.db.Model(&database.Requirement{}).Where("priority = ? AND status != ?", "critical", "approved").Count(&criticalOpen)
+	h.db.Model(&database.Requirement{}).Where("status = ?", "completed").Count(&approved)
+	h.db.Model(&database.Requirement{}).Where("status IN ?", []string{"development", "sit", "uat"}).Count(&inReview)
+	h.db.Model(&database.Requirement{}).Where("priority = ? AND status != ?", "critical", "completed").Count(&criticalOpen)
 
 	var recentActivity []database.ActivityLog
 	h.db.Preload("Actor").Preload("Requirement").
@@ -93,7 +93,7 @@ func (h *Handler) MyRequirements(c *gin.Context) {
 	u := user.(*database.User)
 
 	var reqs []database.Requirement
-	h.db.Preload("Tags").Where("assigned_to_id = ? AND status != ?", u.ID, "approved").
+	h.db.Preload("Tags").Where("assigned_to_id = ? AND status != ?", u.ID, "completed").
 		Order("created_at DESC").Limit(5).
 		Find(&reqs)
 

@@ -12,7 +12,8 @@ import type { Status, Priority } from '@/types'
 import { CheckCircle2, Clock, AlertCircle, BarChart2, TrendingUp, Activity } from 'lucide-react'
 
 const STATUS_COLORS: Record<string, string> = {
-  draft: '#9ca3af', review: '#f59e0b', approved: '#10b981', rejected: '#ef4444',
+  todo: '#9ca3af', requirement_gathering: '#3b82f6', development: '#6366f1',
+  sit: '#f59e0b', uat: '#8b5cf6', d2p: '#ec4899', production_test: '#f97316', completed: '#10b981',
 }
 const PRIORITY_COLORS: Record<string, string> = {
   critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#9ca3af',

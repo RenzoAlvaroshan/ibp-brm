@@ -132,7 +132,7 @@ func (h *Handler) Create(c *gin.Context) {
 	requirement := database.Requirement{
 		Title:       req.Title,
 		Description: req.Description,
-		Status:      database.StatusDraft,
+		Status:      database.StatusTodo,
 		Priority:    database.PriorityMedium,
 		CreatedByID: currentUser.ID,
 	}

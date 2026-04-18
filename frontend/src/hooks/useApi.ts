@@ -8,7 +8,7 @@ import { v4 as uuid } from 'uuid'
 import { useDemoStore } from '@/store/demo'
 import { useAuthStore } from '@/store/auth'
 import { requirementsApi, tagsApi, commentsApi, tasksApi, appsApi } from '@/api/endpoints'
-import type { Requirement, Tag, Comment, RequirementFilters, Task, App } from '@/types'
+import type { Requirement, Tag, Comment, RequirementFilters, Task } from '@/types'
 import {
   mockMetrics, mockNotifications, mockUsers, mockActivity,
 } from '@/api/mockData'
@@ -17,7 +17,6 @@ import {
 
 export function useRequirementsQuery(filters?: RequirementFilters) {
   const isDemoMode = useDemoStore((s) => s.isDemoMode)
-  const demoReqs = useDemoStore((s) => s.requirements)
 
   if (!isDemoMode) {
     return { queryKey: ['requirements', filters], queryFn: () => requirementsApi.list(filters).then((r) => r.data) }
@@ -26,7 +25,7 @@ export function useRequirementsQuery(filters?: RequirementFilters) {
   return {
     queryKey: ['requirements', filters, 'demo'],
     queryFn: async () => {
-      let reqs = [...demoReqs]
+      let reqs = [...useDemoStore.getState().requirements]
       if (filters?.status) reqs = reqs.filter((r) => r.status === filters.status)
       if (filters?.priority) reqs = reqs.filter((r) => r.priority === filters.priority)
       if (filters?.search) {
@@ -54,14 +53,13 @@ export function useRequirementsQuery(filters?: RequirementFilters) {
 
 export function useRequirementQuery(id: string) {
   const isDemoMode = useDemoStore((s) => s.isDemoMode)
-  const demoReqs = useDemoStore((s) => s.requirements)
 
   if (!isDemoMode) {
     return { queryKey: ['requirement', id], queryFn: () => requirementsApi.get(id).then((r) => r.data) }
   }
   return {
     queryKey: ['requirement', id, 'demo'],
-    queryFn: async () => demoReqs.find((r) => r.id === id) as Requirement,
+    queryFn: async () => useDemoStore.getState().requirements.find((r) => r.id === id) as Requirement,
   }
 }
 
@@ -308,10 +306,10 @@ export function useDashboardQuery() {
     queryFn: async () => ({
       ...mockMetrics,
       total: demoReqs.length,
-      approved: demoReqs.filter((r) => r.status === 'approved').length,
-      in_review: demoReqs.filter((r) => r.status === 'review').length,
-      critical_open: demoReqs.filter((r) => r.priority === 'critical' && r.status !== 'approved').length,
-      by_status: ['draft', 'review', 'approved', 'rejected'].map((s) => ({
+      approved: demoReqs.filter((r) => r.status === 'completed').length,
+      in_review: demoReqs.filter((r) => r.status === 'development' || r.status === 'sit' || r.status === 'uat').length,
+      critical_open: demoReqs.filter((r) => r.priority === 'critical' && r.status !== 'completed').length,
+      by_status: ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed'].map((s) => ({
         status: s as any,
         count: demoReqs.filter((r) => r.status === s).length,
       })),
@@ -446,6 +444,27 @@ export function useRemoveAppUser() {
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export function useAllTasksQuery(filters?: { status?: string; app_id?: string; search?: string }) {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  if (isDemoMode) {
+    return {
+      queryKey: ['tasks-all', filters, 'demo'],
+      queryFn: async (): Promise<Task[]> => {
+        let tasks = Object.values(useDemoStore.getState().tasks).flat()
+        if (filters?.status) tasks = tasks.filter((t) => t.status === filters.status)
+        if (filters?.app_id) tasks = tasks.filter((t) => t.app_id === filters.app_id)
+        if (filters?.search) {
+          const s = filters.search.toLowerCase()
+          tasks = tasks.filter((t) => t.title.toLowerCase().includes(s))
+        }
+        return tasks.sort((a, b) => {
+          if (!a.target_date && !b.target_date) return 0
+          if (!a.target_date) return 1
+          if (!b.target_date) return -1
+          return a.target_date.localeCompare(b.target_date)
+        })
+      },
+    }
+  }
   return {
     queryKey: ['tasks-all', filters],
     queryFn: () => tasksApi.listAll(filters).then((r) => r.data),
@@ -453,6 +472,13 @@ export function useAllTasksQuery(filters?: { status?: string; app_id?: string; s
 }
 
 export function useTasksQuery(requirementId: string) {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  if (isDemoMode) {
+    return {
+      queryKey: ['tasks', requirementId, 'demo'],
+      queryFn: async (): Promise<Task[]> => useDemoStore.getState().tasks[requirementId] ?? [],
+    }
+  }
   return {
     queryKey: ['tasks', requirementId],
     queryFn: () => tasksApi.list(requirementId).then((r) => r.data),
@@ -460,36 +486,71 @@ export function useTasksQuery(requirementId: string) {
 }
 
 export function useCreateTask() {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  const addTask = useDemoStore((s) => s.addTask)
   const qc = useQueryClient()
   return useCallback(
     async (requirementId: string, data: Partial<Task> & { target_date?: string; app_id?: string }) => {
-      const res = await tasksApi.create(requirementId, data)
+      if (!isDemoMode) {
+        const res = await tasksApi.create(requirementId, data)
+        qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
+        qc.invalidateQueries({ queryKey: ['tasks-all'] })
+        return res.data
+      }
+      const now = new Date().toISOString()
+      const task: Task = {
+        id: uuid(),
+        requirement_id: requirementId,
+        title: data.title || 'Untitled',
+        description: data.description || '',
+        status: (data.status as Task['status']) || 'todo',
+        target_date: data.target_date || undefined,
+        app_id: data.app_id || undefined,
+        created_at: now,
+        updated_at: now,
+      }
+      addTask(task)
       qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
-      return res.data
+      qc.invalidateQueries({ queryKey: ['tasks-all'] })
+      return task
     },
-    [qc]
+    [isDemoMode, addTask, qc]
   )
 }
 
 export function useUpdateTask() {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  const updateDemoTask = useDemoStore((s) => s.updateTask)
   const qc = useQueryClient()
   return useCallback(
     async (id: string, requirementId: string, data: Partial<Task> & { target_date?: string; app_id?: string }) => {
-      const res = await tasksApi.update(id, data)
+      if (!isDemoMode) {
+        const res = await tasksApi.update(id, data)
+        qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
+        return res.data
+      }
+      updateDemoTask(id, requirementId, { ...data, updated_at: new Date().toISOString() })
       qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
-      return res.data
+      qc.invalidateQueries({ queryKey: ['tasks-all'] })
     },
-    [qc]
+    [isDemoMode, updateDemoTask, qc]
   )
 }
 
 export function useDeleteTask() {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  const deleteDemoTask = useDemoStore((s) => s.deleteTask)
   const qc = useQueryClient()
   return useCallback(
     async (id: string, requirementId: string) => {
-      await tasksApi.delete(id)
+      if (!isDemoMode) {
+        await tasksApi.delete(id)
+      } else {
+        deleteDemoTask(id, requirementId)
+      }
       qc.invalidateQueries({ queryKey: ['tasks', requirementId] })
+      qc.invalidateQueries({ queryKey: ['tasks-all'] })
     },
-    [qc]
+    [isDemoMode, deleteDemoTask, qc]
   )
 }

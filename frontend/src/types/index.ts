@@ -1,5 +1,5 @@
 export type Role = 'admin' | 'editor' | 'viewer'
-export type Status = 'draft' | 'review' | 'approved' | 'rejected'
+export type Status = 'todo' | 'requirement_gathering' | 'development' | 'sit' | 'uat' | 'd2p' | 'production_test' | 'completed'
 export type Priority = 'critical' | 'high' | 'medium' | 'low'
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
 

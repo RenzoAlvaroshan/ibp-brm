@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   DndContext, DragEndEvent, DragOverlay,
   DragStartEvent, PointerSensor, useSensor, useSensors,
-  closestCenter,
+  closestCenter, useDroppable,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -18,13 +18,17 @@ import RequirementPanel from '@/components/requirements/RequirementPanel'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/utils'
 
-const COLUMNS: Status[] = ['draft', 'review', 'approved', 'rejected']
+const COLUMNS: Status[] = ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed']
 
 const COLUMN_CONFIG: Record<Status, { label: string; color: string; bg: string; headerBg: string; dotColor: string }> = {
-  draft:    { label: 'Draft',     color: 'text-gray-600',   bg: 'bg-gray-50/80',     headerBg: 'bg-gray-100',   dotColor: '#9ca3af' },
-  review:   { label: 'In Review', color: 'text-amber-700',  bg: 'bg-amber-50/40',    headerBg: 'bg-amber-100',  dotColor: '#f59e0b' },
-  approved: { label: 'Approved',  color: 'text-emerald-700',bg: 'bg-emerald-50/40',  headerBg: 'bg-emerald-100',dotColor: '#10b981' },
-  rejected: { label: 'Rejected',  color: 'text-red-600',    bg: 'bg-red-50/40',      headerBg: 'bg-red-100',    dotColor: '#ef4444' },
+  todo:                 { label: 'To Do',           color: 'text-gray-600',   bg: 'bg-gray-50/80',    headerBg: 'bg-gray-100',   dotColor: '#9ca3af' },
+  requirement_gathering:{ label: 'Req. Gathering',  color: 'text-blue-700',   bg: 'bg-blue-50/40',    headerBg: 'bg-blue-100',   dotColor: '#3b82f6' },
+  development:          { label: 'Development',     color: 'text-indigo-700', bg: 'bg-indigo-50/40',  headerBg: 'bg-indigo-100', dotColor: '#6366f1' },
+  sit:                  { label: 'SIT',             color: 'text-amber-700',  bg: 'bg-amber-50/40',   headerBg: 'bg-amber-100',  dotColor: '#f59e0b' },
+  uat:                  { label: 'UAT',             color: 'text-violet-700', bg: 'bg-violet-50/40',  headerBg: 'bg-violet-100', dotColor: '#8b5cf6' },
+  d2p:                  { label: 'D2P',             color: 'text-pink-700',   bg: 'bg-pink-50/40',    headerBg: 'bg-pink-100',   dotColor: '#ec4899' },
+  production_test:      { label: 'Prod. Test',      color: 'text-orange-700', bg: 'bg-orange-50/40',  headerBg: 'bg-orange-100', dotColor: '#f97316' },
+  completed:            { label: 'Completed',       color: 'text-emerald-700',bg: 'bg-emerald-50/40', headerBg: 'bg-emerald-100',dotColor: '#10b981' },
 }
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -102,6 +106,7 @@ function KanbanColumn({
   canCreate: boolean
 }) {
   const cfg = COLUMN_CONFIG[status]
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status })
 
   return (
     <div className={cn('flex flex-col rounded-xl border border-gray-200/80 min-w-[260px] flex-1 max-w-[300px] shadow-sm', cfg.bg)}>
@@ -130,7 +135,10 @@ function KanbanColumn({
       </div>
 
       {/* Cards */}
-      <div className="flex-1 p-2.5 space-y-2 overflow-y-auto kanban-column">
+      <div
+        ref={setDropRef}
+        className={cn('flex-1 p-2.5 space-y-2 overflow-y-auto kanban-column transition-colors', isOver && 'bg-white/40')}
+      >
         <SortableContext items={reqs.map((r) => r.id)} strategy={verticalListSortingStrategy}>
           {reqs.map((r) => (
             <KanbanCard key={r.id} req={r} onClick={() => onCardClick(r)} />
@@ -138,7 +146,7 @@ function KanbanColumn({
         </SortableContext>
 
         {reqs.length === 0 && (
-          <div className="flex items-center justify-center h-16 border-2 border-dashed border-gray-200 rounded-lg text-[12px] text-gray-400">
+          <div className={cn('flex items-center justify-center h-16 border-2 border-dashed rounded-lg text-[12px] transition-colors', isOver ? 'border-violet-300 bg-violet-50 text-violet-500' : 'border-gray-200 text-gray-400')}>
             Drop here
           </div>
         )}
@@ -172,12 +180,9 @@ export default function KanbanPage() {
 
   const allReqs = data?.data || []
 
-  const columns: Record<Status, Requirement[]> = {
-    draft:    allReqs.filter((r) => r.status === 'draft').sort((a, b) => a.position - b.position),
-    review:   allReqs.filter((r) => r.status === 'review').sort((a, b) => a.position - b.position),
-    approved: allReqs.filter((r) => r.status === 'approved').sort((a, b) => a.position - b.position),
-    rejected: allReqs.filter((r) => r.status === 'rejected').sort((a, b) => a.position - b.position),
-  }
+  const columns = Object.fromEntries(
+    COLUMNS.map((s) => [s, allReqs.filter((r) => r.status === s).sort((a, b) => a.position - b.position)])
+  ) as Record<Status, Requirement[]>
 
   const findColumn = useCallback((id: string): Status | null => {
     for (const status of COLUMNS) {

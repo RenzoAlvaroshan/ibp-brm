@@ -7,11 +7,11 @@ export const mockUsers: User[] = [
 ]
 
 export const mockTags: Tag[] = [
-  { id: 't1', name: 'Frontend', color: '#6366F1' },
-  { id: 't2', name: 'Backend', color: '#10B981' },
-  { id: 't3', name: 'Database', color: '#F59E0B' },
-  { id: 't4', name: 'Security', color: '#EF4444' },
-  { id: 't5', name: 'Performance', color: '#3B82F6' },
+  { id: 't1', name: 'Enterprise',    color: '#6366F1' },
+  { id: 't2', name: 'Wholesale',     color: '#10B981' },
+  { id: 't3', name: 'Consumer',      color: '#F59E0B' },
+  { id: 't4', name: 'Connectivity',  color: '#3B82F6' },
+  { id: 't5', name: 'Digital',       color: '#EC4899' },
 ]
 
 export const mockComments: Comment[] = [
@@ -29,7 +29,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r1', title: 'User Authentication System',
     description: 'Implement secure JWT-based authentication with refresh tokens, role-based access control, and password reset functionality.',
-    status: 'approved', priority: 'critical',
+    status: 'completed', priority: 'critical',
     created_by_id: 'u1', created_by: mockUsers[0],
     assigned_to_id: 'u2', assigned_to: mockUsers[1],
     due_date: '2024-03-15T00:00:00Z', position: 0,
@@ -40,7 +40,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r2', title: 'Dashboard Analytics Integration',
     description: 'Integrate recharts for displaying real-time business metrics including requirement counts, status distribution, and team performance.',
-    status: 'review', priority: 'high',
+    status: 'development', priority: 'high',
     created_by_id: 'u2', created_by: mockUsers[1],
     assigned_to_id: 'u1', assigned_to: mockUsers[0],
     due_date: '2024-04-01T00:00:00Z', position: 1,
@@ -51,7 +51,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r3', title: 'Export to CSV/PDF Feature',
     description: 'Allow users to export requirements list to CSV and PDF formats with applied filters preserved.',
-    status: 'draft', priority: 'medium',
+    status: 'requirement_gathering', priority: 'medium',
     created_by_id: 'u2', created_by: mockUsers[1],
     position: 2, tags: [mockTags[1]],
     comments: [],
@@ -60,7 +60,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r4', title: 'Email Notification System',
     description: 'Send email notifications when requirement status changes, new comments are added, or assignments change.',
-    status: 'draft', priority: 'medium',
+    status: 'todo', priority: 'medium',
     created_by_id: 'u1', created_by: mockUsers[0],
     position: 3, tags: [mockTags[1], mockTags[2]],
     comments: [],
@@ -69,7 +69,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r5', title: 'Kanban Drag-and-Drop',
     description: 'Implement drag-and-drop using @dnd-kit. Persist position and status changes to backend.',
-    status: 'review', priority: 'high',
+    status: 'sit', priority: 'high',
     created_by_id: 'u2', created_by: mockUsers[1],
     assigned_to_id: 'u2', assigned_to: mockUsers[1],
     due_date: '2024-03-30T00:00:00Z', position: 4,
@@ -80,7 +80,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r6', title: 'Performance Optimization Review',
     description: 'Review and optimize database queries, add proper indexes, and implement query caching.',
-    status: 'rejected', priority: 'low',
+    status: 'uat', priority: 'low',
     created_by_id: 'u3', created_by: mockUsers[2],
     position: 5, tags: [mockTags[4]],
     comments: [],
@@ -89,7 +89,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r7', title: 'Multi-language Support (i18n)',
     description: 'Add internationalization support for English, Spanish, and French using react-i18next.',
-    status: 'draft', priority: 'low',
+    status: 'todo', priority: 'low',
     created_by_id: 'u1', created_by: mockUsers[0],
     position: 6, tags: [mockTags[0]],
     comments: [],
@@ -98,7 +98,7 @@ export const mockRequirements: Requirement[] = [
   {
     id: 'r8', title: 'Role Permission Audit Trail',
     description: 'Log all permission changes and sensitive actions to a separate audit log table.',
-    status: 'approved', priority: 'high',
+    status: 'production_test', priority: 'high',
     created_by_id: 'u1', created_by: mockUsers[0],
     assigned_to_id: 'u1', assigned_to: mockUsers[0],
     position: 7, tags: [mockTags[3]],
@@ -109,14 +109,18 @@ export const mockRequirements: Requirement[] = [
 
 export const mockMetrics: DashboardMetrics = {
   total: mockRequirements.length,
-  approved: mockRequirements.filter(r => r.status === 'approved').length,
-  in_review: mockRequirements.filter(r => r.status === 'review').length,
-  critical_open: mockRequirements.filter(r => r.priority === 'critical' && r.status !== 'approved').length,
+  approved: mockRequirements.filter(r => r.status === 'completed').length,
+  in_review: mockRequirements.filter(r => r.status === 'development' || r.status === 'sit' || r.status === 'uat').length,
+  critical_open: mockRequirements.filter(r => r.priority === 'critical' && r.status !== 'completed').length,
   by_status: [
-    { status: 'draft', count: mockRequirements.filter(r => r.status === 'draft').length },
-    { status: 'review', count: mockRequirements.filter(r => r.status === 'review').length },
-    { status: 'approved', count: mockRequirements.filter(r => r.status === 'approved').length },
-    { status: 'rejected', count: mockRequirements.filter(r => r.status === 'rejected').length },
+    { status: 'todo', count: mockRequirements.filter(r => r.status === 'todo').length },
+    { status: 'requirement_gathering', count: mockRequirements.filter(r => r.status === 'requirement_gathering').length },
+    { status: 'development', count: mockRequirements.filter(r => r.status === 'development').length },
+    { status: 'sit', count: mockRequirements.filter(r => r.status === 'sit').length },
+    { status: 'uat', count: mockRequirements.filter(r => r.status === 'uat').length },
+    { status: 'd2p', count: mockRequirements.filter(r => r.status === 'd2p').length },
+    { status: 'production_test', count: mockRequirements.filter(r => r.status === 'production_test').length },
+    { status: 'completed', count: mockRequirements.filter(r => r.status === 'completed').length },
   ],
   by_priority: [
     { priority: 'critical', count: mockRequirements.filter(r => r.priority === 'critical').length },

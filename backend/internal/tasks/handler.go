@@ -38,7 +38,13 @@ type UpdateTaskRequest struct {
 func (h *Handler) List(c *gin.Context) {
 	reqID := c.Param("id")
 	var tasks []database.Task
-	h.db.Preload("App").Where("requirement_id = ?", reqID).Order("created_at ASC").Find(&tasks)
+	if err := h.db.Preload("App").Where("requirement_id = ?", reqID).Order("created_at ASC").Find(&tasks).Error; err != nil {
+		c.JSON(http.StatusOK, []database.Task{})
+		return
+	}
+	if tasks == nil {
+		tasks = []database.Task{}
+	}
 	c.JSON(http.StatusOK, tasks)
 }
 

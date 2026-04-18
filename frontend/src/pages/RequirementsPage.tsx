@@ -21,13 +21,17 @@ import { useDemoStore } from '@/store/demo'
 import { requirementsApi } from '@/api/endpoints'
 import { cn } from '@/utils'
 
-const STATUS_ORDER: Status[] = ['draft', 'review', 'approved', 'rejected']
+const STATUS_ORDER: Status[] = ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed']
 
 const STATUS_HEADER: Record<Status, { label: string; color: string; dot: string }> = {
-  draft:    { label: 'Draft',    color: 'text-gray-600',   dot: 'bg-gray-400' },
-  review:   { label: 'In Review',color: 'text-amber-700',  dot: 'bg-amber-400' },
-  approved: { label: 'Approved', color: 'text-emerald-700',dot: 'bg-emerald-400' },
-  rejected: { label: 'Rejected', color: 'text-red-600',    dot: 'bg-red-400' },
+  todo:                 { label: 'To Do',              color: 'text-gray-600',   dot: 'bg-gray-400' },
+  requirement_gathering:{ label: 'Req. Gathering',     color: 'text-blue-700',   dot: 'bg-blue-400' },
+  development:          { label: 'Development',        color: 'text-indigo-700', dot: 'bg-indigo-400' },
+  sit:                  { label: 'SIT',                color: 'text-amber-700',  dot: 'bg-amber-400' },
+  uat:                  { label: 'UAT',                color: 'text-violet-700', dot: 'bg-violet-400' },
+  d2p:                  { label: 'D2P',                color: 'text-pink-700',   dot: 'bg-pink-400' },
+  production_test:      { label: 'Production Test',    color: 'text-orange-700', dot: 'bg-orange-400' },
+  completed:            { label: 'Completed',          color: 'text-emerald-700',dot: 'bg-emerald-400' },
 }
 
 const PRIORITY_COLOR: Record<Priority, string> = {
@@ -304,14 +308,6 @@ export default function RequirementsPage() {
           >
             <Download size={13} /> Export
           </button>
-          {canCreate && (
-            <button
-              onClick={() => { setCreateStatus(undefined); setShowCreate(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] bg-violet-600 hover:bg-violet-700 text-white font-medium rounded-md transition-colors shadow-sm shadow-violet-600/20"
-            >
-              <Plus size={14} /> New
-            </button>
-          )}
         </div>
       </div>
 
@@ -320,10 +316,14 @@ export default function RequirementsPage() {
         <div className="flex items-center gap-2 mb-4 p-3 bg-white border border-gray-200 rounded-lg animate-slide-down flex-wrap">
           <select value={filters.status || ''} onChange={(e) => setFilter('status', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
             <option value="">All Statuses</option>
-            <option value="draft">Draft</option>
-            <option value="review">Review</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
+            <option value="todo">To Do</option>
+            <option value="requirement_gathering">Requirement Gathering</option>
+            <option value="development">Development</option>
+            <option value="sit">SIT</option>
+            <option value="uat">UAT</option>
+            <option value="d2p">D2P</option>
+            <option value="production_test">Production Test</option>
+            <option value="completed">Completed</option>
           </select>
           <select value={filters.priority || ''} onChange={(e) => setFilter('priority', e.target.value)} className="px-2.5 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-gray-700">
             <option value="">All Priorities</option>

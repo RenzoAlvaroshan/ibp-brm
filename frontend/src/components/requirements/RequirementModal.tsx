@@ -11,7 +11,7 @@ import { useTagsQuery, useUsersQuery, useCreateRequirement, useUpdateRequirement
 const schema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  status: z.enum(['draft', 'review', 'approved', 'rejected']).optional(),
+  status: z.enum(['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed']).optional(),
   priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
   assigned_to_id: z.string().optional(),
   due_date: z.string().optional(),
@@ -39,7 +39,7 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
     defaultValues: {
       title:           requirement?.title || '',
       description:     requirement?.description || '',
-      status:          (requirement?.status || defaultStatus || 'draft') as Status,
+      status:          (requirement?.status || defaultStatus || 'todo') as Status,
       priority:        (requirement?.priority || 'medium') as Priority,
       assigned_to_id:  requirement?.assigned_to_id || '',
       due_date:        requirement?.due_date ? requirement.due_date.split('T')[0] : '',
@@ -113,10 +113,14 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
               <div>
                 <label className={labelCls}>Status</label>
                 <select {...register('status')} className={selectCls}>
-                  <option value="draft">Draft</option>
-                  <option value="review">Review</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="todo">To Do</option>
+                  <option value="requirement_gathering">Requirement Gathering</option>
+                  <option value="development">Development</option>
+                  <option value="sit">SIT</option>
+                  <option value="uat">UAT</option>
+                  <option value="d2p">D2P</option>
+                  <option value="production_test">Production Test</option>
+                  <option value="completed">Completed</option>
                 </select>
               </div>
               <div>

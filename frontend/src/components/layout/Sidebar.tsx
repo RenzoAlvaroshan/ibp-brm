@@ -1,7 +1,8 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ListChecks, Columns3, Tag, Settings,
-  ChevronLeft, ChevronRight, LogOut, Zap, AppWindow, CheckSquare,
+  ChevronLeft, ChevronRight, LogOut, Zap, AppWindow, CheckSquare, ChevronDown,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useUIStore } from '@/store/ui'
@@ -13,15 +14,21 @@ const navItems = [
   { to: '/requirements', icon: ListChecks,       label: 'Requirements' },
   { to: '/kanban',       icon: Columns3,         label: 'Board' },
   { to: '/tasks',        icon: CheckSquare,      label: 'Tasks' },
-  { to: '/tags',         icon: Tag,              label: 'Tags' },
-  { to: '/apps',         icon: AppWindow,        label: 'Apps' },
-  { to: '/settings',     icon: Settings,         label: 'Settings' },
+]
+
+const settingsSubItems = [
+  { to: '/tags',     icon: Tag,       label: 'Tags' },
+  { to: '/apps',     icon: AppWindow, label: 'Apps' },
+  { to: '/settings', icon: Settings,  label: 'General' },
 ]
 
 export default function Sidebar() {
   const { user, logout } = useAuthStore()
   const { sidebarCollapsed, toggleSidebar } = useUIStore()
   const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  const location = useLocation()
+  const settingsActive = settingsSubItems.some((i) => location.pathname.startsWith(i.to))
+  const [settingsOpen, setSettingsOpen] = useState(settingsActive)
 
   return (
     <aside className={cn(
@@ -88,6 +95,72 @@ export default function Sidebar() {
             )}
           </NavLink>
         ))}
+
+        {/* Settings group */}
+        <button
+          onClick={() => !sidebarCollapsed && setSettingsOpen((o) => !o)}
+          className={cn(
+            'w-full flex items-center gap-2.5 rounded-md text-[13px] font-medium',
+            'transition-all duration-150 group select-none',
+            sidebarCollapsed ? 'justify-center px-0 py-2' : 'px-2.5 py-[7px]',
+            settingsActive
+              ? 'bg-white/[0.1] text-white'
+              : 'text-white/45 hover:bg-white/[0.06] hover:text-white/80'
+          )}
+          title={sidebarCollapsed ? 'Settings' : undefined}
+        >
+          <Settings
+            size={16}
+            className={cn(
+              'shrink-0 transition-colors duration-150',
+              settingsActive ? 'text-violet-400' : 'text-white/35 group-hover:text-white/60'
+            )}
+          />
+          {!sidebarCollapsed && (
+            <>
+              <span className="leading-none flex-1 text-left">Settings</span>
+              <ChevronDown
+                size={13}
+                className={cn('shrink-0 transition-transform duration-200 text-white/30', settingsOpen && 'rotate-180')}
+              />
+            </>
+          )}
+        </button>
+
+        {/* Sub-items */}
+        {!sidebarCollapsed && settingsOpen && (
+          <div className="ml-3 pl-2.5 border-l border-white/[0.08] space-y-px">
+            {settingsSubItems.map(({ to, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) => cn(
+                  'flex items-center gap-2 rounded-md text-[12px] font-medium px-2 py-[6px]',
+                  'transition-all duration-150 group select-none',
+                  isActive
+                    ? 'bg-white/[0.1] text-white'
+                    : 'text-white/40 hover:bg-white/[0.06] hover:text-white/75'
+                )}
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon
+                      size={14}
+                      className={cn(
+                        'shrink-0 transition-colors duration-150',
+                        isActive ? 'text-violet-400' : 'text-white/30 group-hover:text-white/55'
+                      )}
+                    />
+                    <span className="leading-none">{label}</span>
+                    {isActive && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                    )}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        )}
       </nav>
 
       {/* Bottom */}
