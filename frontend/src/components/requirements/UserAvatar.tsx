@@ -5,6 +5,7 @@ interface Props {
   user?: User | null
   size?: 'sm' | 'md' | 'lg'
   showName?: boolean
+  variant?: 'colored' | 'dark'
 }
 
 const sizeMap = {
@@ -28,7 +29,7 @@ function colorForName(name: string) {
   return colors[Math.abs(hash) % colors.length]
 }
 
-export default function UserAvatar({ user, size = 'md', showName = false }: Props) {
+export default function UserAvatar({ user, size = 'md', showName = false, variant = 'colored' }: Props) {
   if (!user) {
     return (
       <div className={cn('rounded-full bg-gray-200 flex items-center justify-center text-gray-400', sizeMap[size])}>
@@ -37,7 +38,9 @@ export default function UserAvatar({ user, size = 'md', showName = false }: Prop
     )
   }
   const initials = getInitials(user.full_name)
-  const color = colorForName(user.full_name || user.email)
+  const color = variant === 'dark'
+    ? 'bg-gray-800 text-gray-100'
+    : colorForName(user.full_name || user.email)
 
   return (
     <div className="flex items-center gap-2">

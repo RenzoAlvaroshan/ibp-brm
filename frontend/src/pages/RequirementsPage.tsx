@@ -69,31 +69,31 @@ interface RowProps {
   onAddSubtask: (r: Requirement) => void
 }
 
-function TagPills({ tags, max = 2 }: { tags?: Requirement['tags']; max?: number }) {
+function TagPills({ tags, max = 1 }: { tags?: Requirement['tags']; max?: number }) {
   if (!tags || tags.length === 0) return null
   const shown = tags.slice(0, max)
   const extra = tags.length - shown.length
+  const overflowTitle = tags.slice(max).map((t) => t.name).join(', ')
   return (
     <div className="flex items-center gap-1 min-w-0">
       {shown.map((t) => (
         <span
           key={t.id}
-          className="inline-flex items-center px-1.5 py-[1px] rounded-full text-[10px] font-medium border whitespace-nowrap max-w-[120px] truncate"
-          style={{
-            backgroundColor: t.color + '14',
-            color: t.color,
-            borderColor: t.color + '30',
-          }}
+          className="inline-flex items-center px-1.5 py-[1px] rounded-full text-[10px] font-medium bg-transparent text-gray-500 whitespace-nowrap max-w-[120px] truncate ring-[0.5px] ring-gray-300/80"
           title={t.name}
         >
           {t.name}
         </span>
       ))}
       {extra > 0 && (
-        <span className="text-[10px] font-medium text-gray-400 px-1">+{extra}</span>
+        <span className="text-[10px] font-medium text-gray-400 px-1" title={overflowTitle}>+{extra} more</span>
       )}
     </div>
   )
+}
+
+function MetaDivider() {
+  return <span className="mx-2 w-px h-4 bg-gray-200 shrink-0" aria-hidden />
 }
 
 function RequirementRow({ req, canCreate, draggable, onOpen, onEdit, onDelete, onAddSubtask }: RowProps) {
@@ -153,21 +153,40 @@ function RequirementRow({ req, canCreate, draggable, onOpen, onEdit, onDelete, o
 
           {/* Meta row */}
           <div className="flex items-center gap-2 shrink-0">
-            <StatusBadge status={req.status} size="sm" />
+            {req.due_date && (
+              <div className="hidden md:flex items-center gap-1 text-[11px] text-gray-400 whitespace-nowrap">
+                <Calendar size={11} />
+                {formatDate(req.due_date)}
+              </div>
+            )}
 
-            <div className="hidden sm:flex items-center gap-2">
-              <PriorityBadge priority={req.priority} size="sm" />
+            <div className="hidden sm:flex items-center">
+              {/* Assignee zone */}
+              <div className="flex items-center justify-center w-7 shrink-0">
+                <UserAvatar user={req.assigned_to} size="sm" variant="dark" />
+              </div>
 
-              <UserAvatar user={req.assigned_to} size="sm" />
+              <MetaDivider />
 
-              {req.due_date && (
-                <div className="flex items-center gap-1 text-[11px] text-gray-400 whitespace-nowrap">
-                  <Calendar size={11} />
-                  {formatDate(req.due_date)}
-                </div>
+              {/* Priority zone */}
+              <PriorityBadge priority={req.priority} mode="muted" />
+
+              <MetaDivider />
+
+              {/* Status zone */}
+              <StatusBadge status={req.status} size="sm" />
+
+              {req.tags && req.tags.length > 0 && (
+                <>
+                  <MetaDivider />
+                  <TagPills tags={req.tags} max={1} />
+                </>
               )}
+            </div>
 
-              <TagPills tags={req.tags} max={2} />
+            {/* Mobile fallback */}
+            <div className="sm:hidden">
+              <StatusBadge status={req.status} size="sm" />
             </div>
 
             {canCreate && (
