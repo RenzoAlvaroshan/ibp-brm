@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import type { Requirement, Status, Priority } from '@/types'
 import { useTagsQuery, useUsersQuery, useCreateRequirement, useUpdateRequirement } from '@/hooks/useApi'
 import { SingleSelect, UserSelect } from '@/components/ui/Select'
+import MarkdownEditor, { MarkdownContent } from '@/components/ui/MarkdownEditor'
 import { cn } from '@/utils'
 
 const schema = z.object({
@@ -69,9 +70,11 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
   const status         = watch('status') || 'todo'
   const priority       = watch('priority') || 'medium'
   const assigned_to_id = watch('assigned_to_id') || ''
+  const description    = watch('description') || ''
 
   const [selectedTags, setSelectedTags] = useState<string[]>(requirement?.tags?.map((t) => t.id) || [])
   const [saving, setSaving] = useState(false)
+  const [descEditing, setDescEditing] = useState(false)
 
   const toggleTag = (id: string) =>
     setSelectedTags((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id])
@@ -133,12 +136,28 @@ export default function RequirementModal({ onClose, requirement, defaultStatus }
             {/* Description */}
             <div>
               <label className={labelCls}>Description</label>
-              <textarea
-                {...register('description')}
-                rows={3}
-                className={`${inputCls} resize-none`}
-                placeholder="Describe the requirement in detail…"
-              />
+              {descEditing ? (
+                <MarkdownEditor
+                  value={description}
+                  onChange={(v) => setValue('description', v, { shouldDirty: true })}
+                  onBlur={() => setDescEditing(false)}
+                  placeholder="Describe the requirement in detail (Markdown supported)…"
+                  autoFocus
+                />
+              ) : (
+                <div
+                  onClick={() => setDescEditing(true)}
+                  className={cn(
+                    'cursor-text rounded-lg border border-gray-200 hover:border-violet-300 px-4 py-3 min-h-[96px] transition-colors',
+                    !description && 'flex items-center',
+                  )}
+                >
+                  {description
+                    ? <MarkdownContent>{description}</MarkdownContent>
+                    : <span className="text-[13px] text-gray-400">Click to add a description (Markdown supported)</span>
+                  }
+                </div>
+              )}
             </div>
 
             {/* Status + Priority */}

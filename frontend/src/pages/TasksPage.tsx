@@ -8,7 +8,8 @@ import {
 import { useAllTasksQuery, useAppsQuery } from '@/hooks/useApi'
 import { SingleSelect } from '@/components/ui/Select'
 import { cn, formatDate } from '@/utils'
-import type { Task, TaskStatus } from '@/types'
+import type { Task, TaskStatus, Requirement } from '@/types'
+import RequirementPanel from '@/components/requirements/RequirementPanel'
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -91,15 +92,19 @@ function DateRange({ startDate, targetDate }: { startDate?: string; targetDate?:
 
 // ─── Task card ────────────────────────────────────────────────────────────────
 
-function TaskCard({ task, dimmed }: { task: Task; dimmed?: boolean }) {
+function TaskCard({ task, dimmed, onClick }: { task: Task; dimmed?: boolean; onClick?: () => void }) {
   const cfg = STATUS_CONFIG[task.status]
   const Icon = cfg.icon
 
   return (
-    <div className={cn(
-      'group flex items-start gap-4 px-4 py-3.5 hover:bg-gray-50/80 transition-colors',
-      dimmed && 'opacity-60',
-    )}>
+    <div
+      onClick={onClick}
+      className={cn(
+        'group flex items-start gap-4 px-4 py-3.5 hover:bg-gray-50/80 transition-colors',
+        onClick && 'cursor-pointer',
+        dimmed && 'opacity-60',
+      )}
+    >
       {/* Status icon */}
       <div className="shrink-0 mt-0.5">
         <Icon size={15} style={{ color: cfg.dot }} strokeWidth={2} />
@@ -144,7 +149,13 @@ function TaskCard({ task, dimmed }: { task: Task; dimmed?: boolean }) {
 
 // ─── Status group ─────────────────────────────────────────────────────────────
 
-function StatusGroup({ status, tasks }: { status: TaskStatus; tasks: Task[] }) {
+function StatusGroup({
+  status, tasks, onTaskClick,
+}: {
+  status: TaskStatus
+  tasks: Task[]
+  onTaskClick: (task: Task) => void
+}) {
   const [open, setOpen] = useState(status !== 'done')
   const cfg = STATUS_CONFIG[status]
   const Icon = cfg.icon
@@ -181,7 +192,12 @@ function StatusGroup({ status, tasks }: { status: TaskStatus; tasks: Task[] }) {
       {open && (
         <div className="divide-y divide-gray-100/80">
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} dimmed={isDone} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              dimmed={isDone}
+              onClick={() => onTaskClick(task)}
+            />
           ))}
         </div>
       )}
@@ -197,6 +213,19 @@ export default function TasksPage() {
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatus] = useState(ALL)
   const [appFilter, setApp]       = useState(ALL)
+  const [openedReq, setOpenedReq] = useState<Requirement | null>(null)
+  const [openedTaskId, setOpenedTaskId] = useState<string | null>(null)
+
+  const handleTaskClick = (task: Task) => {
+    if (!task.requirement) return
+    setOpenedReq(task.requirement)
+    setOpenedTaskId(task.id)
+  }
+
+  const handleCloseReq = () => {
+    setOpenedReq(null)
+    setOpenedTaskId(null)
+  }
 
   const allTasksQuery = useAllTasksQuery({
     status: statusFilter !== ALL ? statusFilter : undefined,
@@ -284,9 +313,22 @@ export default function TasksPage() {
       ) : (
         <div className="space-y-3">
           {STATUS_ORDER.map((status) => (
-            <StatusGroup key={status} status={status} tasks={grouped[status]} />
+            <StatusGroup
+              key={status}
+              status={status}
+              tasks={grouped[status]}
+              onTaskClick={handleTaskClick}
+            />
           ))}
         </div>
+      )}
+
+      {openedReq && (
+        <RequirementPanel
+          requirement={openedReq}
+          initialTaskId={openedTaskId ?? undefined}
+          onClose={handleCloseReq}
+        />
       )}
     </div>
   )
