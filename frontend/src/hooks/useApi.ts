@@ -590,3 +590,27 @@ export function useDeleteTask() {
     [isDemoMode, deleteDemoTask, qc]
   )
 }
+
+export function useReorderTasks() {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  const reorderDemoTasks = useDemoStore((s) => s.reorderTasks)
+  const qc = useQueryClient()
+  return useCallback(
+    async (requirementId: string, orderedIds: string[]) => {
+      // Optimistically update the cached task list so the UI reflects the new
+      // order before the query refetches (or, in demo mode, persistently).
+      qc.setQueryData<Task[]>(['tasks', requirementId, isDemoMode ? 'demo' : undefined].filter(Boolean), (old) => {
+        if (!old) return old
+        const byId = new Map(old.map((t) => [t.id, t]))
+        const reordered = orderedIds.map((id) => byId.get(id)).filter((t): t is Task => !!t)
+        const extras = old.filter((t) => !orderedIds.includes(t.id))
+        return [...reordered, ...extras]
+      })
+      if (isDemoMode) {
+        reorderDemoTasks(requirementId, orderedIds)
+      }
+      qc.invalidateQueries({ queryKey: ['tasks-all'] })
+    },
+    [isDemoMode, reorderDemoTasks, qc]
+  )
+}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Bell, Plus, X, Zap } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notificationsApi } from '@/api/endpoints'
@@ -13,8 +13,19 @@ const breadcrumbMap: Record<string, string> = {
   '/dashboard':    'Home',
   '/requirements': 'Requirements',
   '/kanban':       'Board',
+  '/tasks':        'Tasks',
+  '/gantt':        'Gantt',
   '/tags':         'Tags',
   '/settings':     'Settings',
+}
+
+const SEARCHABLE_ROUTES = new Set(['/requirements', '/kanban', '/tasks', '/gantt'])
+
+function searchPlaceholder(pathname: string): string {
+  if (pathname.startsWith('/tasks')) return 'Search tasks...'
+  if (pathname.startsWith('/kanban')) return 'Search board...'
+  if (pathname.startsWith('/gantt')) return 'Search timeline...'
+  return 'Search requirements...'
 }
 
 export default function Topbar() {
@@ -25,7 +36,12 @@ export default function Topbar() {
   const isDemoMode = useDemoStore((s) => s.isDemoMode)
   const queryClient = useQueryClient()
 
-  const [search, setSearch] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const isSearchableRoute = SEARCHABLE_ROUTES.has(location.pathname)
+  const urlSearch = isSearchableRoute ? (searchParams.get('search') || '') : ''
+  const [localSearch, setLocalSearch] = useState('')
+  const search = isSearchableRoute ? urlSearch : localSearch
+
   const [showNotifs, setShowNotifs] = useState(false)
   const [showNewReq, setShowNewReq] = useState(false)
   const notifsRef = useRef<HTMLDivElement>(null)
@@ -58,14 +74,28 @@ export default function Topbar() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && search.trim()) {
-      navigate(`/requirements?search=${encodeURIComponent(search.trim())}`)
-      setSearch('')
+  const handleSearchChange = (value: string) => {
+    if (isSearchableRoute) {
+      const next = new URLSearchParams(searchParams)
+      if (value) next.set('search', value)
+      else next.delete('search')
+      setSearchParams(next, { replace: true })
+    } else {
+      setLocalSearch(value)
     }
   }
 
+  const handleSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !isSearchableRoute && localSearch.trim()) {
+      navigate(`/requirements?search=${encodeURIComponent(localSearch.trim())}`)
+      setLocalSearch('')
+    }
+  }
+
+  const clearSearch = () => handleSearchChange('')
+
   const breadcrumb = breadcrumbMap[location.pathname] || 'BRM'
+  const placeholder = searchPlaceholder(location.pathname)
 
   return (
     <>
@@ -85,14 +115,14 @@ export default function Topbar() {
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search requirements..."
+            placeholder={placeholder}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={handleSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={handleSearchKey}
             className="w-full pl-8 pr-8 py-1.5 text-[13px] bg-gray-50 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all placeholder:text-gray-400"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={clearSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
               <X size={13} />
             </button>
           )}
