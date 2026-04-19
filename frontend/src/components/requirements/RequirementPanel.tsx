@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   X, MessageSquare, Clock, Trash2, Send, CheckSquare,
@@ -70,6 +70,30 @@ export default function RequirementPanel({ requirement, onClose, initialTaskId }
   const [isDirty, setIsDirty] = useState(false)
   const [descExpanded, setDescExpanded] = useState(false)
   const [descEditing, setDescEditing] = useState(false)
+
+  // Resizable splitter between Tasks (top) and Comments/Activity (bottom).
+  const rightColRef = useRef<HTMLDivElement | null>(null)
+  const [tasksFlex, setTasksFlex] = useState(0.5)
+  const [resizing, setResizing] = useState(false)
+
+  const onSplitterDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setResizing(true)
+    const col = rightColRef.current
+    if (!col) return
+    const rect = col.getBoundingClientRect()
+    const move = (ev: MouseEvent) => {
+      const frac = (ev.clientY - rect.top) / rect.height
+      setTasksFlex(Math.min(0.85, Math.max(0.15, frac)))
+    }
+    const up = () => {
+      setResizing(false)
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }, [])
 
   const reqQuery      = useRequirementQuery(requirement.id)
   const activityQuery = useActivityQuery(requirement.id)
@@ -450,10 +474,16 @@ export default function RequirementPanel({ requirement, onClose, initialTaskId }
             </div>
 
             {/* ── RIGHT: Tasks + Comments + Activity ── */}
-            <div className="flex-[2] flex flex-col min-h-0 bg-gray-50/30">
+            <div
+              ref={rightColRef}
+              className={cn('flex-[2] flex flex-col min-h-0 bg-gray-50/30', resizing && 'select-none')}
+            >
 
               {/* Tasks — scrollable top section */}
-              <div className="overflow-y-auto px-5 py-5 border-b border-gray-200/60 max-h-[45%]">
+              <div
+                className="overflow-y-auto px-5 py-5"
+                style={{ flex: `${tasksFlex} 1 0`, minHeight: 0 }}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-1.5">
                     <CheckSquare size={14} className="text-gray-400" />
@@ -523,8 +553,30 @@ export default function RequirementPanel({ requirement, onClose, initialTaskId }
                 </div>
               </div>
 
+              {/* Draggable splitter */}
+              <div
+                role="separator"
+                aria-orientation="horizontal"
+                onMouseDown={onSplitterDown}
+                className={cn(
+                  'group relative h-1.5 shrink-0 cursor-row-resize',
+                  'border-y border-gray-200/60',
+                  resizing ? 'bg-violet-200' : 'bg-gray-100 hover:bg-violet-100 transition-colors',
+                )}
+              >
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none">
+                  <div className={cn(
+                    'h-0.5 w-10 rounded-full transition-colors',
+                    resizing ? 'bg-violet-500' : 'bg-gray-300 group-hover:bg-violet-400',
+                  )} />
+                </div>
+              </div>
+
               {/* Scrollable comments + activity */}
-              <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+              <div
+                className="overflow-y-auto px-5 py-5 space-y-6"
+                style={{ flex: `${1 - tasksFlex} 1 0`, minHeight: 0 }}
+              >
 
                 {/* Comments */}
                 <div>

@@ -3,11 +3,21 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  Plus, Download, ChevronDown, Pencil, Trash2,
-  Calendar, Filter, LayoutList,
+  Plus, Download, ChevronDown, ChevronRight, Pencil, Trash2,
+  Calendar, Filter, LayoutList, ListTree,
 } from 'lucide-react'
 import {
-  useRequirementsQuery, useTagsQuery, useUsersQuery, useDeleteRequirement,
+  DndContext, DragEndEvent, PointerSensor,
+  closestCenter, useSensor, useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext, arrayMove, useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
+  useRequirementsQuery, useTagsQuery, useUsersQuery,
+  useDeleteRequirement, useReorderRequirements,
 } from '@/hooks/useApi'
 import { SingleSelect, UserSelect } from '@/components/ui/Select'
 import type { Requirement, Status, Priority, RequirementFilters } from '@/types'
@@ -16,11 +26,18 @@ import PriorityBadge from '@/components/requirements/PriorityBadge'
 import UserAvatar from '@/components/requirements/UserAvatar'
 import RequirementModal from '@/components/requirements/RequirementModal'
 import RequirementPanel from '@/components/requirements/RequirementPanel'
+import TaskSubrowList from '@/components/requirements/TaskSubrowList'
+import TaskModal from '@/components/requirements/TaskModal'
 import { formatDate } from '@/utils'
 import { useAuthStore } from '@/store/auth'
 import { useDemoStore } from '@/store/demo'
 import { requirementsApi } from '@/api/endpoints'
 import { cn } from '@/utils'
+
+function useSubtaskCount(requirementId: string): number | undefined {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  return useDemoStore((s) => (isDemoMode ? s.tasks[requirementId]?.length ?? 0 : undefined))
+}
 
 const STATUS_ORDER: Status[] = ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed']
 
@@ -45,96 +62,184 @@ const PRIORITY_COLOR: Record<Priority, string> = {
 interface RowProps {
   req: Requirement
   canCreate: boolean
+  draggable: boolean
   onOpen: (r: Requirement) => void
   onEdit: (r: Requirement) => void
   onDelete: (r: Requirement) => void
+  onAddSubtask: (r: Requirement) => void
 }
 
-function RequirementRow({ req, canCreate, onOpen, onEdit, onDelete }: RowProps) {
+function TagPills({ tags, max = 2 }: { tags?: Requirement['tags']; max?: number }) {
+  if (!tags || tags.length === 0) return null
+  const shown = tags.slice(0, max)
+  const extra = tags.length - shown.length
+  return (
+    <div className="flex items-center gap-1 min-w-0">
+      {shown.map((t) => (
+        <span
+          key={t.id}
+          className="inline-flex items-center px-1.5 py-[1px] rounded-full text-[10px] font-medium border whitespace-nowrap max-w-[120px] truncate"
+          style={{
+            backgroundColor: t.color + '14',
+            color: t.color,
+            borderColor: t.color + '30',
+          }}
+          title={t.name}
+        >
+          {t.name}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span className="text-[10px] font-medium text-gray-400 px-1">+{extra}</span>
+      )}
+    </div>
+  )
+}
+
+function RequirementRow({ req, canCreate, draggable, onOpen, onEdit, onDelete, onAddSubtask }: RowProps) {
+  const [expanded, setExpanded] = useState(false)
+  const subtaskCount = useSubtaskCount(req.id)
+  const hasTasks = subtaskCount === undefined ? true : subtaskCount > 0
+
+  const sortable = useSortable({ id: req.id, disabled: !draggable })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = sortable
+
   return (
     <div
-      className="req-row group flex items-center gap-0 border-b border-gray-100 last:border-0 cursor-pointer"
-      onClick={() => onOpen(req)}
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : undefined,
+        zIndex: isDragging ? 20 : undefined,
+        position: 'relative',
+      }}
+      className="border-b border-gray-100 last:border-0 bg-white"
     >
-      {/* Priority color bar */}
-      <div className="w-1 self-stretch shrink-0 rounded-l" style={{ backgroundColor: PRIORITY_COLOR[req.priority] }} />
+      <div
+        {...(draggable ? attributes : {})}
+        {...(draggable ? listeners : {})}
+        className="req-row group flex items-center gap-0 cursor-pointer"
+        onClick={() => onOpen(req)}
+      >
+        {/* Priority color bar */}
+        <div className="w-1 self-stretch shrink-0 rounded-l" style={{ backgroundColor: PRIORITY_COLOR[req.priority] }} />
 
-      <div className="flex-1 flex items-center gap-3 px-3 py-2.5 min-w-0">
-        {/* Title */}
-        <span className="flex-1 min-w-0 text-[13px] font-medium text-gray-800 truncate">{req.title}</span>
+        <div className="flex-1 flex items-center gap-2 px-2 py-2.5 min-w-0">
+          {/* Expand toggle (only if it has subtasks) or Add subtask on hover */}
+          {hasTasks ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
+              aria-label={expanded ? 'Collapse subtasks' : 'Expand subtasks'}
+              className="shrink-0 p-1 -ml-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </button>
+          ) : canCreate ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onAddSubtask(req) }}
+              title="Create subtask"
+              aria-label="Create subtask"
+              className="shrink-0 p-1 -ml-1 rounded text-gray-300 hover:text-violet-600 hover:bg-violet-50 transition-all opacity-0 group-hover:opacity-100"
+            >
+              <Plus size={13} />
+            </button>
+          ) : (
+            <span className="shrink-0 w-[22px]" />
+          )}
 
-        {/* Meta row */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <StatusBadge status={req.status} size="sm" />
+          {/* Title */}
+          <span className="flex-1 min-w-0 text-[13px] font-medium text-gray-800 truncate">{req.title}</span>
 
-          <div className="hidden sm:flex items-center gap-2.5">
-            <PriorityBadge priority={req.priority} size="sm" />
+          {/* Meta row */}
+          <div className="flex items-center gap-2 shrink-0">
+            <StatusBadge status={req.status} size="sm" />
 
-            <UserAvatar user={req.assigned_to} size="sm" />
+            <div className="hidden sm:flex items-center gap-2">
+              <PriorityBadge priority={req.priority} size="sm" />
 
-            {req.due_date && (
-              <div className="flex items-center gap-1 text-[11px] text-gray-400 whitespace-nowrap">
-                <Calendar size={11} />
-                {formatDate(req.due_date)}
-              </div>
-            )}
+              <UserAvatar user={req.assigned_to} size="sm" />
 
-            {req.tags && req.tags.length > 0 && (
-              <div className="flex items-center gap-1">
-                {req.tags.slice(0, 2).map((t) => (
-                  <span
-                    key={t.id}
-                    className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                    style={{ backgroundColor: t.color + '18', color: t.color }}
-                  >
-                    {t.name}
-                  </span>
-                ))}
-                {req.tags.length > 2 && (
-                  <span className="text-[10px] text-gray-400">+{req.tags.length - 2}</span>
-                )}
+              {req.due_date && (
+                <div className="flex items-center gap-1 text-[11px] text-gray-400 whitespace-nowrap">
+                  <Calendar size={11} />
+                  {formatDate(req.due_date)}
+                </div>
+              )}
+
+              <TagPills tags={req.tags} max={2} />
+            </div>
+
+            {canCreate && (
+              <div
+                className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => onEdit(req)}
+                  className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors"
+                  aria-label="Edit requirement"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  onClick={() => onDelete(req)}
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                  aria-label="Delete requirement"
+                >
+                  <Trash2 size={12} />
+                </button>
               </div>
             )}
           </div>
-
-          {canCreate && (
-            <div
-              className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={() => onEdit(req)}
-                className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors"
-              >
-                <Pencil size={12} />
-              </button>
-              <button
-                onClick={() => onDelete(req)}
-                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          )}
         </div>
       </div>
+
+      {expanded && (
+        <div
+          className="pl-9 pr-3 py-1.5 bg-gray-50/60 border-t border-gray-100 animate-fade-in-up"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-gray-400 px-2 py-1">
+            <ListTree size={11} />
+            Subtasks
+          </div>
+          <TaskSubrowList requirement={req} onTaskClick={() => onOpen(req)} />
+        </div>
+      )}
     </div>
   )
 }
 
 function StatusGroup({
-  status, reqs, canCreate, onOpen, onEdit, onDelete, onAddNew,
+  status, reqs, canCreate, hideWhenEmpty, onOpen, onEdit, onDelete, onAddNew, onAddSubtask, onReorder,
 }: {
   status: Status
   reqs: Requirement[]
   canCreate: boolean
+  hideWhenEmpty: boolean
   onOpen: (r: Requirement) => void
   onEdit: (r: Requirement) => void
   onDelete: (r: Requirement) => void
   onAddNew: (s: Status) => void
+  onAddSubtask: (r: Requirement) => void
+  onReorder: (status: Status, orderedIds: string[]) => void
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const cfg = STATUS_HEADER[status]
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const oldIdx = reqs.findIndex((r) => r.id === active.id)
+    const newIdx = reqs.findIndex((r) => r.id === over.id)
+    if (oldIdx < 0 || newIdx < 0) return
+    const ordered = arrayMove(reqs, oldIdx, newIdx).map((r) => r.id)
+    onReorder(status, ordered)
+  }
+
+  if (hideWhenEmpty && reqs.length === 0) return null
 
   return (
     <div className="mb-3">
@@ -160,16 +265,22 @@ function StatusGroup({
               No {cfg.label.toLowerCase()} requirements
             </div>
           ) : (
-            reqs.map((req) => (
-              <RequirementRow
-                key={req.id}
-                req={req}
-                canCreate={canCreate}
-                onOpen={onOpen}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
-            ))
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={reqs.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+                {reqs.map((req) => (
+                  <RequirementRow
+                    key={req.id}
+                    req={req}
+                    canCreate={canCreate}
+                    draggable={canCreate}
+                    onOpen={onOpen}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onAddSubtask={onAddSubtask}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
 
           {canCreate && (
@@ -196,6 +307,9 @@ export default function RequirementsPage() {
   const [selectedReq, setSelectedReq] = useState<Requirement | null>(null)
   const [editReq, setEditReq] = useState<Requirement | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [subtaskFor, setSubtaskFor] = useState<Requirement | null>(null)
+
+  const reorderReqs = useReorderRequirements()
 
   const canCreate = user?.role === 'admin' || user?.role === 'editor'
 
@@ -255,9 +369,16 @@ export default function RequirementsPage() {
 
   const allReqs = data?.data || []
   const grouped = STATUS_ORDER.reduce((acc, s) => {
-    acc[s] = allReqs.filter((r) => r.status === s)
+    acc[s] = allReqs
+      .filter((r) => r.status === s)
+      .sort((a, b) => a.position - b.position)
     return acc
   }, {} as Record<Status, Requirement[]>)
+
+  const handleReorder = (status: Status, orderedIds: string[]) => {
+    const items = orderedIds.map((id, i) => ({ id, position: i, status }))
+    reorderReqs(items).catch(() => toast.error('Failed to save order'))
+  }
 
   const handleDelete = (req: Requirement) => {
     if (!confirm(`Delete "${req.title}"?`)) return
@@ -277,7 +398,7 @@ export default function RequirementsPage() {
           <input
             type="text"
             placeholder="Search requirements..."
-            defaultValue={filters.search}
+            value={filters.search ?? ''}
             onChange={(e) => setFilter('search', e.target.value)}
             className="px-3 py-1.5 text-[13px] bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all w-52 placeholder:text-gray-400"
           />
@@ -395,10 +516,13 @@ export default function RequirementsPage() {
               status={status}
               reqs={grouped[status]}
               canCreate={canCreate}
+              hideWhenEmpty={activeFilterCount > 0}
               onOpen={setSelectedReq}
               onEdit={setEditReq}
               onDelete={handleDelete}
               onAddNew={handleAddNew}
+              onAddSubtask={setSubtaskFor}
+              onReorder={handleReorder}
             />
           ))}
           {allReqs.length === 0 && (
@@ -421,6 +545,12 @@ export default function RequirementsPage() {
       )}
       {editReq && <RequirementModal requirement={editReq} onClose={() => setEditReq(null)} />}
       {selectedReq && <RequirementPanel requirement={selectedReq} onClose={() => setSelectedReq(null)} />}
+      {subtaskFor && (
+        <TaskModal
+          requirementId={subtaskFor.id}
+          onClose={() => setSubtaskFor(null)}
+        />
+      )}
     </div>
   )
 }

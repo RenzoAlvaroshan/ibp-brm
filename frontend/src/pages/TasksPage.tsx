@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import {
@@ -210,7 +211,14 @@ function StatusGroup({
 const ALL = '__all__'
 
 export default function TasksPage() {
-  const [search, setSearch]       = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = searchParams.get('search') || ''
+  const setSearch = (value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set('search', value)
+    else next.delete('search')
+    setSearchParams(next, { replace: true })
+  }
   const [statusFilter, setStatus] = useState(ALL)
   const [appFilter, setApp]       = useState(ALL)
   const [openedReq, setOpenedReq] = useState<Requirement | null>(null)

@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   DndContext, DragEndEvent, DragOverEvent, DragOverlay,
@@ -9,15 +10,16 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { toast } from 'sonner'
-import { Plus, MessageSquare, Calendar, X } from 'lucide-react'
-import { useRequirementsQuery, useReorderRequirements } from '@/hooks/useApi'
-import type { Requirement, Status } from '@/types'
+import { Plus, MessageSquare, Calendar, X, ChevronDown, ChevronRight, ListTree } from 'lucide-react'
+import { useRequirementsQuery, useReorderRequirements, useTasksQuery } from '@/hooks/useApi'
+import type { Requirement, Status, Task } from '@/types'
 import { formatDate } from '@/utils'
 import UserAvatar from '@/components/requirements/UserAvatar'
 import RequirementModal from '@/components/requirements/RequirementModal'
 import RequirementPanel from '@/components/requirements/RequirementPanel'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/utils'
+import { useDemoStore } from '@/store/demo'
 
 const COLUMNS: Status[] = ['todo', 'requirement_gathering', 'development', 'sit', 'uat', 'd2p', 'production_test', 'completed']
 
@@ -44,7 +46,43 @@ const dropAnimation: DropAnimation = {
   }),
 }
 
+const TASK_STATUS_DOT: Record<Task['status'], string> = {
+  todo: '#9ca3af', in_progress: '#6366f1', blocked: '#ef4444', done: '#10b981',
+}
+
+function SubtaskPreview({ requirement, expanded }: { requirement: Requirement; expanded: boolean }) {
+  const tasksQuery = useTasksQuery(requirement.id)
+  const { data: tasks = [] } = useQuery({ ...tasksQuery, enabled: expanded })
+  if (!expanded) return null
+  if (tasks.length === 0) {
+    return <p className="mt-2 text-[11px] text-gray-400 italic">No subtasks yet.</p>
+  }
+  return (
+    <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+      {tasks.map((t) => (
+        <li key={t.id} className="flex items-center gap-1.5 text-[11.5px] text-gray-600 min-w-0">
+          <span
+            className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ backgroundColor: TASK_STATUS_DOT[t.status] }}
+          />
+          <span className={cn('truncate', t.status === 'done' && 'line-through text-gray-400')} title={t.title}>
+            {t.title}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function useSubtaskCount(requirementId: string): number | undefined {
+  const isDemoMode = useDemoStore((s) => s.isDemoMode)
+  const count = useDemoStore((s) => (isDemoMode ? s.tasks[requirementId]?.length : undefined))
+  return count
+}
+
 function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onClick: () => void; overlay?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const subtaskCount = useSubtaskCount(req.id)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: req.id,
     transition: { duration: 320, easing: 'cubic-bezier(0.34, 1.2, 0.64, 1)' },
@@ -60,14 +98,16 @@ function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onCli
           {req.tags.slice(0, 3).map((t) => (
             <span
               key={t.id}
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-              style={{ backgroundColor: t.color + '18', color: t.color }}
+              className="inline-flex items-center px-1.5 py-[1px] rounded-full text-[10px] font-medium border"
+              style={{ backgroundColor: t.color + '14', color: t.color, borderColor: t.color + '30' }}
             >
               {t.name}
             </span>
           ))}
           {req.tags.length > 3 && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-400">+{req.tags.length - 3}</span>
+            <span className="inline-flex items-center px-1.5 py-[1px] rounded-full text-[10px] font-medium text-gray-400 bg-gray-50 border border-gray-200">
+              +{req.tags.length - 3}
+            </span>
           )}
         </div>
       )}
@@ -88,6 +128,27 @@ function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onCli
           </div>
         )}
       </div>
+
+      {!overlay && (subtaskCount === undefined ? true : subtaskCount > 0) && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="mt-2 flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-violet-600 transition-colors"
+          >
+            {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+            <ListTree size={11} />
+            {subtaskCount !== undefined
+              ? `${subtaskCount} subtask${subtaskCount === 1 ? '' : 's'}`
+              : 'Subtasks'}
+          </button>
+          {expanded && (
+            <div onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+              <SubtaskPreview requirement={req} expanded={expanded} />
+            </div>
+          )}
+        </>
+      )}
     </>
   )
 
@@ -290,6 +351,10 @@ export default function KanbanPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   )
 
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = (searchParams.get('search') || '').trim()
+  const hasSearch = search.length > 0
+
   const reqsQuery = useRequirementsQuery({ limit: 200, sort: 'position', dir: 'asc' })
   const { data } = useQuery(reqsQuery)
   const reorderFn = useReorderRequirements()
@@ -297,9 +362,25 @@ export default function KanbanPage() {
 
   const allReqs = data?.data || []
 
+  const visibleReqs = useMemo(() => {
+    if (!hasSearch) return allReqs
+    const s = search.toLowerCase()
+    return allReqs.filter((r) =>
+      r.title.toLowerCase().includes(s)
+      || r.description?.toLowerCase().includes(s)
+      || r.tags?.some((t) => t.name.toLowerCase().includes(s))
+    )
+  }, [allReqs, search, hasSearch])
+
   const columns = Object.fromEntries(
-    COLUMNS.map((s) => [s, allReqs.filter((r) => r.status === s).sort((a, b) => a.position - b.position)])
+    COLUMNS.map((s) => [s, visibleReqs.filter((r) => r.status === s).sort((a, b) => a.position - b.position)])
   ) as Record<Status, Requirement[]>
+
+  const clearSearch = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('search')
+    setSearchParams(next)
+  }
 
   const findColumn = useCallback((id: string): Status | null => {
     for (const status of COLUMNS) {
@@ -461,6 +542,20 @@ export default function KanbanPage() {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
+        {hasSearch && (
+          <div className="flex items-center justify-between px-3 py-2 mx-2 mb-2 bg-violet-50 border border-violet-200 rounded-lg text-[12px]">
+            <span className="text-violet-700">
+              Showing results for <span className="font-semibold">"{search}"</span>
+              <span className="text-violet-500 ml-2">· {visibleReqs.length} {visibleReqs.length === 1 ? 'item' : 'items'}</span>
+            </span>
+            <button
+              onClick={clearSearch}
+              className="flex items-center gap-1 text-violet-600 hover:text-violet-800 font-medium"
+            >
+              <X size={11} /> Clear
+            </button>
+          </div>
+        )}
         <div className="flex gap-3 h-full overflow-x-auto px-2 py-2">
           {COLUMNS.map((status) => (
             <KanbanColumn

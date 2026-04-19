@@ -20,6 +20,7 @@ interface DemoState {
   addTask: (t: Task) => void
   updateTask: (id: string, requirementId: string, patch: Partial<Task>) => void
   deleteTask: (id: string, requirementId: string) => void
+  reorderTasks: (requirementId: string, orderedIds: string[]) => void
 }
 
 export const useDemoStore = create<DemoState>()(
@@ -102,6 +103,19 @@ export const useDemoStore = create<DemoState>()(
             [requirementId]: (s.tasks[requirementId] ?? []).filter((t) => t.id !== id),
           },
         })),
+
+      reorderTasks: (requirementId, orderedIds) =>
+        set((s) => {
+          const existing = s.tasks[requirementId] ?? []
+          const byId = new Map(existing.map((t) => [t.id, t]))
+          const reordered = orderedIds
+            .map((id) => byId.get(id))
+            .filter((t): t is Task => !!t)
+          const extras = existing.filter((t) => !orderedIds.includes(t.id))
+          return {
+            tasks: { ...s.tasks, [requirementId]: [...reordered, ...extras] },
+          }
+        }),
     }),
     { name: 'brm-demo-v2', partialize: (state) => ({ isDemoMode: state.isDemoMode }) }
   )
