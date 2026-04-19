@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  X, Pencil, MessageSquare, Clock, Trash2, Send, CheckSquare,
+  X, MessageSquare, Clock, Trash2, Send, CheckSquare,
   Plus, FileText, Calendar, Save, Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,7 +16,9 @@ import PriorityBadge from './PriorityBadge'
 import UserAvatar from './UserAvatar'
 import { SingleSelect, UserSelect } from '@/components/ui/Select'
 import MarkdownEditor, { MarkdownContent } from '@/components/ui/MarkdownEditor'
+import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import TaskModal from './TaskModal'
+import TaskGantt from './TaskGantt'
 import { formatDate, formatRelative, actionLabel } from '@/utils'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/utils'
@@ -53,12 +55,15 @@ const PRIORITY_COLOR: Record<string, string> = {
 const labelCls = 'text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5 block'
 const gridSelectCls = 'px-2 py-1 text-[13px] w-full'
 
-interface Props { requirement: Requirement; onClose: () => void }
+interface Props { requirement: Requirement; onClose: () => void; initialTaskId?: string }
 
-export default function RequirementPanel({ requirement, onClose }: Props) {
+export default function RequirementPanel({ requirement, onClose, initialTaskId }: Props) {
   const { user } = useAuthStore()
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | undefined>()
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null)
+  const [deletingTask, setDeletingTask] = useState(false)
+  const autoOpenedTaskIdRef = useRef<string | null>(null)
   const [comment, setComment] = useState('')
   const [addingComment, setAddingComment] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -115,6 +120,24 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
     setIsDirty(false)
   }, [requirement.id])
 
+  // Auto-open a task once tasks load (used when navigating from Tasks page).
+  // Delayed so the requirement panel's scale-in animation completes first,
+  // creating a visible "one-by-one" reveal of the two modals. Uses a ref so
+  // setting state inside doesn't re-trigger the effect and cancel the timer.
+  useEffect(() => {
+    if (!initialTaskId || autoOpenedTaskIdRef.current === initialTaskId) return
+    if (!tasksData?.length) return
+    const task = tasksData.find((t) => t.id === initialTaskId)
+    if (!task) return
+
+    const timer = window.setTimeout(() => {
+      autoOpenedTaskIdRef.current = initialTaskId
+      setEditingTask(task)
+      setShowTaskModal(true)
+    }, 320)
+    return () => window.clearTimeout(timer)
+  }, [initialTaskId, tasksData])
+
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
     setIsDirty(true)
@@ -136,9 +159,18 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
   }
 
 
-  const handleDeleteTask = async (id: string) => {
-    try { await deleteTask(id, requirement.id) }
-    catch { toast.error('Failed to delete task') }
+  const confirmDeleteTask = async () => {
+    if (!taskToDelete) return
+    setDeletingTask(true)
+    try {
+      await deleteTask(taskToDelete.id, requirement.id)
+      toast.success('Task deleted')
+      setTaskToDelete(null)
+    } catch {
+      toast.error('Failed to delete task')
+    } finally {
+      setDeletingTask(false)
+    }
   }
 
   const handleCycleTaskStatus = async (task: Task) => {
@@ -406,6 +438,15 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
                 )}
               </div>
 
+              {/* Tasks timeline */}
+              <div>
+                <p className={labelCls}>Tasks Timeline</p>
+                <TaskGantt
+                  tasks={tasks}
+                  onTaskClick={(t) => { setEditingTask(t); setShowTaskModal(true) }}
+                />
+              </div>
+
             </div>
 
             {/* ── RIGHT: Tasks + Comments + Activity ── */}
@@ -436,12 +477,16 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
 
                 <div className="space-y-2">
                   {tasks.map((task) => (
-                    <div key={task.id} className="border border-gray-200 rounded-lg p-3 hover:border-gray-300 bg-white transition-colors">
+                    <div
+                      key={task.id}
+                      onClick={() => { setEditingTask(task); setShowTaskModal(true) }}
+                      className="border border-gray-200 rounded-lg p-3 hover:border-violet-300 hover:shadow-sm bg-white transition-all cursor-pointer"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <button
-                              onClick={() => canEdit && handleCycleTaskStatus(task)}
+                              onClick={(e) => { e.stopPropagation(); if (canEdit) handleCycleTaskStatus(task) }}
                               className={cn(
                                 'text-[10px] font-semibold px-2 py-0.5 rounded-full',
                                 taskStatusConfig[task.status].color,
@@ -465,20 +510,12 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
                           )}
                         </div>
                         {canEdit && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={() => { setEditingTask(task); setShowTaskModal(true) }}
-                              className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-md transition-colors"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTask(task.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setTaskToDelete(task) }}
+                            className="shrink-0 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         )}
                       </div>
                     </div>
@@ -592,6 +629,21 @@ export default function RequirementPanel({ requirement, onClose }: Props) {
           onClose={() => { setShowTaskModal(false); setEditingTask(undefined) }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!taskToDelete}
+        variant="danger"
+        title="Delete this task?"
+        message={
+          taskToDelete
+            ? <>This will permanently remove <span className="font-semibold text-gray-700">"{taskToDelete.title}"</span>. This action cannot be undone.</>
+            : null
+        }
+        confirmLabel="Delete"
+        loading={deletingTask}
+        onConfirm={confirmDeleteTask}
+        onCancel={() => !deletingTask && setTaskToDelete(null)}
+      />
     </>
   )
 }

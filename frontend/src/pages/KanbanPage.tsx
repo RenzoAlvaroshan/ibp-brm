@@ -1,15 +1,15 @@
-import { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useCallback, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  DndContext, DragEndEvent, DragOverlay,
+  DndContext, DragEndEvent, DragOverEvent, DragOverlay,
   DragStartEvent, PointerSensor, useSensor, useSensors,
-  closestCenter, useDroppable,
+  closestCorners, useDroppable, useDndContext,
   defaultDropAnimationSideEffects, type DropAnimation,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { toast } from 'sonner'
-import { Plus, MessageSquare, Calendar } from 'lucide-react'
+import { Plus, MessageSquare, Calendar, X } from 'lucide-react'
 import { useRequirementsQuery, useReorderRequirements } from '@/hooks/useApi'
 import type { Requirement, Status } from '@/types'
 import { formatDate } from '@/utils'
@@ -37,17 +37,17 @@ const PRIORITY_COLOR: Record<string, string> = {
 }
 
 const dropAnimation: DropAnimation = {
-  duration: 220,
-  easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  duration: 320,
+  easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.15)',
   sideEffects: defaultDropAnimationSideEffects({
-    styles: { active: { opacity: '0' } },
+    styles: { active: { opacity: '0.35' } },
   }),
 }
 
 function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onClick: () => void; overlay?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: req.id,
-    transition: { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+    transition: { duration: 320, easing: 'cubic-bezier(0.34, 1.2, 0.64, 1)' },
   })
 
   const priorityColor = PRIORITY_COLOR[req.priority] || '#9ca3af'
@@ -96,9 +96,10 @@ function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onCli
       <div
         style={{
           borderLeft: `3px solid ${priorityColor}`,
-          transform: 'rotate(1.5deg) scale(1.03)',
+          transform: 'rotate(2.5deg) scale(1.04)',
+          boxShadow: `0 25px 50px -12px ${priorityColor}40, 0 12px 24px rgba(0,0,0,0.12), 0 0 0 1px ${priorityColor}30`,
         }}
-        className="bg-white rounded-lg border border-gray-300 p-3 shadow-2xl cursor-grabbing select-none w-[260px]"
+        className="bg-white rounded-lg p-3 cursor-grabbing select-none w-[260px] animate-card-lift"
       >
         {cardContent}
       </div>
@@ -111,20 +112,23 @@ function KanbanCard({ req, onClick, overlay = false }: { req: Requirement; onCli
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
-        borderLeft: `3px solid ${priorityColor}`,
+        borderLeft: `3px solid ${isDragging ? priorityColor + '60' : priorityColor}`,
+        backgroundColor: isDragging ? '#f9fafb' : undefined,
       }}
       {...attributes}
       {...listeners}
       onClick={(e) => { e.stopPropagation(); onClick() }}
       className={cn(
-        'bg-white rounded-lg border border-gray-200 p-3 select-none group',
-        'kanban-card-hover',
+        'rounded-lg border p-3 select-none group',
+        'transition-[border-color,box-shadow,transform] duration-150',
         isDragging
-          ? 'opacity-0 pointer-events-none'
-          : 'cursor-grab active:cursor-grabbing'
+          ? 'border-dashed border-gray-300 pointer-events-none'
+          : 'bg-white border-gray-200 cursor-grab active:cursor-grabbing kanban-card-hover',
       )}
     >
-      {cardContent}
+      <div className={cn(isDragging && 'opacity-30')}>
+        {cardContent}
+      </div>
     </div>
   )
 }
@@ -140,7 +144,10 @@ function KanbanColumn({
   isDraggingGlobal: boolean
 }) {
   const cfg = COLUMN_CONFIG[status]
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: status })
+  const { setNodeRef: setDropRef, isOver: isOverColumn } = useDroppable({ id: status })
+  const { over } = useDndContext()
+  const overId = over?.id as string | undefined
+  const isOver = isOverColumn || (!!overId && reqs.some((r) => r.id === overId))
 
   return (
     <div
@@ -244,6 +251,30 @@ function KanbanColumn({
   )
 }
 
+const CANCEL_DROP_ID = '__cancel__'
+
+function CancelDropZone({ visible }: { visible: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: CANCEL_DROP_ID })
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-full border-2 select-none pointer-events-auto',
+        'transition-all duration-200',
+        visible ? 'bottom-6 opacity-100' : 'bottom-0 opacity-0 pointer-events-none',
+        isOver
+          ? 'bg-red-500 border-red-500 text-white scale-110 shadow-[0_12px_32px_rgba(239,68,68,0.45)]'
+          : 'bg-white border-gray-300 text-gray-600 shadow-lg',
+      )}
+    >
+      <X size={16} />
+      <span className="text-[12px] font-semibold uppercase tracking-wide">
+        {isOver ? 'Release to cancel' : 'Drop here to cancel'}
+      </span>
+    </div>
+  )
+}
+
 export default function KanbanPage() {
   const { user } = useAuthStore()
   const canCreate = user?.role === 'admin' || user?.role === 'editor'
@@ -252,6 +283,8 @@ export default function KanbanPage() {
   const [selectedReq, setSelectedReq] = useState<Requirement | null>(null)
   const [addToStatus, setAddToStatus] = useState<Status | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const lastCrossMoveRef = useRef<{ col: Status | null; t: number }>({ col: null, t: 0 })
+  const originSnapshotRef = useRef<Requirement[] | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -260,6 +293,7 @@ export default function KanbanPage() {
   const reqsQuery = useRequirementsQuery({ limit: 200, sort: 'position', dir: 'asc' })
   const { data } = useQuery(reqsQuery)
   const reorderFn = useReorderRequirements()
+  const queryClient = useQueryClient()
 
   const allReqs = data?.data || []
 
@@ -278,6 +312,56 @@ export default function KanbanPage() {
     const req = allReqs.find((r) => r.id === e.active.id)
     setActiveReq(req || null)
     setIsDragging(true)
+    lastCrossMoveRef.current = { col: req?.status ?? null, t: Date.now() }
+    originSnapshotRef.current = allReqs.map((r) => ({ ...r }))
+  }
+
+  const handleDragOver = (e: DragOverEvent) => {
+    const { active, over } = e
+    if (!over) return
+    const activeId = active.id as string
+    const overId = over.id as string
+    if (activeId === overId) return
+    if (overId === CANCEL_DROP_ID) return
+
+    const activeCol = findColumn(activeId)
+    const overCol = COLUMNS.includes(overId as Status) ? (overId as Status) : findColumn(overId)
+    if (!activeCol || !overCol || activeCol === overCol) return
+
+    // Cooldown guard — prevents jiggle when the pointer hovers the boundary
+    // between two columns and collision detection oscillates between them.
+    const now = Date.now()
+    if (
+      lastCrossMoveRef.current.col &&
+      lastCrossMoveRef.current.col !== overCol &&
+      now - lastCrossMoveRef.current.t < 220
+    ) {
+      return
+    }
+    lastCrossMoveRef.current = { col: overCol, t: now }
+
+    // Live cross-column move: shift cards in the target column to make space
+    queryClient.setQueriesData<{ data: Requirement[] } & Record<string, unknown>>(
+      { queryKey: ['requirements'] },
+      (old) => {
+        if (!old?.data) return old
+        const data = [...old.data]
+        const activeIdx = data.findIndex((r) => r.id === activeId)
+        if (activeIdx === -1) return old
+
+        const moved = { ...data[activeIdx], status: overCol as Status }
+        data.splice(activeIdx, 1)
+
+        if (overId === overCol) {
+          data.push(moved)
+        } else {
+          const overIdx = data.findIndex((r) => r.id === overId)
+          data.splice(overIdx >= 0 ? overIdx : data.length, 0, moved)
+        }
+
+        return { ...old, data }
+      },
+    )
   }
 
   const handleDragEnd = async (e: DragEndEvent) => {
@@ -288,6 +372,20 @@ export default function KanbanPage() {
 
     const activeId = active.id as string
     const overId = over.id as string
+
+    // Cancel drop — restore the snapshot taken at drag start, no API call.
+    if (overId === CANCEL_DROP_ID) {
+      const snapshot = originSnapshotRef.current
+      if (snapshot) {
+        queryClient.setQueriesData<{ data: Requirement[] } & Record<string, unknown>>(
+          { queryKey: ['requirements'] },
+          (old) => (old?.data ? { ...old, data: snapshot } : old),
+        )
+      }
+      originSnapshotRef.current = null
+      return
+    }
+
     const activeCol = findColumn(activeId)
     const overCol = COLUMNS.includes(overId as Status) ? overId as Status : findColumn(overId)
 
@@ -315,24 +413,51 @@ export default function KanbanPage() {
       newItems.push({ id: activeId, position: toIdx === -1 ? targetCol.length - 1 : toIdx, status: overCol })
     }
 
+    // Optimistic cache update — so the drop animation lands in the new column
+    const updates = new Map(newItems.map((i) => [i.id, i]))
+    queryClient.setQueriesData<{ data: Requirement[] } & Record<string, unknown>>(
+      { queryKey: ['requirements'] },
+      (old) => {
+        if (!old?.data) return old
+        return {
+          ...old,
+          data: old.data.map((r) => {
+            const u = updates.get(r.id)
+            return u ? { ...r, position: u.position, status: u.status as Status } : r
+          }),
+        }
+      },
+    )
+
     try {
       await reorderFn(newItems)
     } catch {
       toast.error('Failed to save order')
+      queryClient.invalidateQueries({ queryKey: ['requirements'] })
     }
   }
 
   const handleDragCancel = () => {
     setActiveReq(null)
     setIsDragging(false)
+    lastCrossMoveRef.current = { col: null, t: 0 }
+    const snapshot = originSnapshotRef.current
+    if (snapshot) {
+      queryClient.setQueriesData<{ data: Requirement[] } & Record<string, unknown>>(
+        { queryKey: ['requirements'] },
+        (old) => (old?.data ? { ...old, data: snapshot } : old),
+      )
+    }
+    originSnapshotRef.current = null
   }
 
   return (
     <div className="h-full -m-2">
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={closestCorners}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
@@ -352,6 +477,7 @@ export default function KanbanPage() {
         <DragOverlay dropAnimation={dropAnimation}>
           {activeReq && <KanbanCard req={activeReq} onClick={() => {}} overlay />}
         </DragOverlay>
+        <CancelDropZone visible={isDragging} />
       </DndContext>
 
       {addToStatus && (

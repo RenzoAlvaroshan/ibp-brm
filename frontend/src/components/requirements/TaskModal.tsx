@@ -42,7 +42,7 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
   const appsQuery = useAppsQuery()
   const { data: apps = [] } = useQuery(appsQuery)
 
-  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormValues>({
+  const { register, handleSubmit, formState: { errors, isDirty }, setValue, watch } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       title:       task?.title || '',
@@ -97,10 +97,10 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-[15px] font-semibold text-gray-900">
-              {isEdit ? 'Edit Task' : 'New Task'}
+              {isEdit ? 'Detail Task' : 'New Task'}
             </h2>
             <p className="text-[11px] text-gray-400 mt-0.5">
-              {isEdit ? 'Update the fields below' : 'Fill in the details to create a new task'}
+              {isEdit ? 'View task details' : 'Fill in the details to create a new task'}
             </p>
           </div>
           <button
@@ -137,7 +137,7 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
               <label className={labelCls}>Status</label>
               <SingleSelect
                 value={status}
-                onChange={(v) => setValue('status', v as FormValues['status'])}
+                onChange={(v) => setValue('status', v as FormValues['status'], { shouldDirty: true })}
                 options={STATUS_OPTIONS}
               />
             </div>
@@ -159,7 +159,7 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
               <label className={labelCls}>Related App</label>
               <SingleSelect
                 value={app_id}
-                onChange={(v) => setValue('app_id', v)}
+                onChange={(v) => setValue('app_id', v, { shouldDirty: true })}
                 options={appOptions}
                 placeholder="No app"
               />
@@ -173,19 +173,21 @@ export default function TaskModal({ requirementId, task, onClose }: Props) {
               onClick={onClose}
               className="px-4 py-2 text-[13px] font-medium rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
             >
-              Cancel
+              {isEdit ? 'Close' : 'Cancel'}
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className={cn(
-                'px-5 py-2 text-[13px] font-medium text-white rounded-lg transition-colors shadow-sm',
-                'bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-50',
-                'shadow-violet-600/25',
-              )}
-            >
-              {saving ? 'Saving…' : isEdit ? 'Update' : 'Create'}
-            </button>
+            {(!isEdit || isDirty) && (
+              <button
+                type="submit"
+                disabled={saving}
+                className={cn(
+                  'px-5 py-2 text-[13px] font-medium text-white rounded-lg transition-colors shadow-sm',
+                  'bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-50',
+                  'shadow-violet-600/25',
+                )}
+              >
+                {saving ? 'Saving…' : isEdit ? 'Save' : 'Create'}
+              </button>
+            )}
           </div>
         </form>
       </div>
