@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -331,6 +331,14 @@ export default function RequirementsPage() {
   const reorderReqs = useReorderRequirements()
 
   const canCreate = user?.role === 'admin' || user?.role === 'editor'
+
+  useEffect(() => {
+    if (searchParams.get('new') !== '1' || !canCreate) return
+    setShowCreate(true)
+    const params = new URLSearchParams(searchParams)
+    params.delete('new')
+    setSearchParams(params, { replace: true })
+  }, [canCreate, searchParams, setSearchParams])
 
   const filters: RequirementFilters = {
     status: (searchParams.get('status') as Status) || undefined,

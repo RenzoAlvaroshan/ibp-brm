@@ -1,587 +1,517 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, AreaChart, Area,
+  Bar, BarChart, CartesianGrid, Cell, Line, LineChart, PolarAngleAxis,
+  RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { useDashboardQuery, useMyRequirementsQuery, useTagsQuery } from '@/hooks/useApi'
-import { statusConfig, priorityConfig, formatRelative, formatDate, actionLabel, cn } from '@/utils'
-import UserAvatar from '@/components/requirements/UserAvatar'
-import StatusBadge from '@/components/requirements/StatusBadge'
-import PriorityBadge from '@/components/requirements/PriorityBadge'
-import type { DashboardFilters, DashboardReqItem, Priority, Status } from '@/types'
-import { MultiSelect } from '@/components/ui/Select'
 import {
-  CheckCircle2, BarChart2, TrendingUp, Activity,
-  SlidersHorizontal, X, AlertTriangle, CalendarDays, Users, Tag as TagIcon,
+  Activity, AlertTriangle, ArrowRight, BadgeCheck, Ban, Building2,
+  CalendarClock, CheckCircle2, Clock3, FileWarning, Gauge, Layers3,
+  LineChart as LineChartIcon, ShieldAlert, Sparkles, Target, Timer, TrendingDown,
+  TrendingUp,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { cn } from '@/utils'
+import { useI18n, type TranslationKey } from '@/i18n'
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+type Tone = 'good' | 'warning' | 'bad' | 'neutral' | 'purple'
 
-const STATUS_COLORS: Record<string, string> = {
-  todo: '#9ca3af', requirement_gathering: '#3b82f6', development: '#6366f1',
-  sit: '#f59e0b', uat: '#8b5cf6', d2p: '#ec4899', production_test: '#f97316', completed: '#10b981',
+type IconType = LucideIcon
+
+interface KpiItem {
+  labelKey: TranslationKey
+  value: string
+  suffixKey?: TranslationKey
+  trend: string
+  trendTone: Tone
+  icon: IconType
+  href: string
 }
-const PRIORITY_COLORS: Record<string, string> = {
-  critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#9ca3af',
+
+interface AttentionItem {
+  priorityKey: TranslationKey
+  priorityTone: 'high' | 'medium'
+  requirement: string
+  issue: string
+  decision: string
+  executiveOwner: string
+  due: string
+  detailSlug: string
 }
-const PRIORITY_HEX: Record<string, string> = {
-  critical: '#ef4444', high: '#f97316', medium: '#3b82f6', low: '#9ca3af',
+
+const kpiItems: KpiItem[] = [
+  { labelKey: 'kpi.activeRequirements', value: '25', trend: '+4', trendTone: 'neutral', icon: Activity, href: '/requirements?status=development' },
+  { labelKey: 'kpi.newThisMonth', value: '8', trend: '+12%', trendTone: 'neutral', icon: Sparkles, href: '/requirements?sort=created_at&dir=desc' },
+  { labelKey: 'kpi.completedThisMonth', value: '6', trend: '+2', trendTone: 'good', icon: CheckCircle2, href: '/requirements?status=completed' },
+  { labelKey: 'kpi.overdue', value: '3', trend: '-1', trendTone: 'good', icon: CalendarClock, href: '/requirements?search=overdue' },
+  { labelKey: 'kpi.atRisk', value: '5', trend: '+2', trendTone: 'bad', icon: ShieldAlert, href: '/requirements?priority=critical' },
+  { labelKey: 'kpi.blocked', value: '2', trend: '+1', trendTone: 'warning', icon: Ban, href: '/requirements?search=blocked' },
+  { labelKey: 'kpi.avgLeadTime', value: '21', suffixKey: 'unit.days', trend: '-3d', trendTone: 'good', icon: Timer, href: '/requirements?search=lead%20time' },
+  { labelKey: 'kpi.slaCompliance', value: '84%', trend: '+5%', trendTone: 'good', icon: Gauge, href: '/requirements?search=sla' },
+]
+
+const attentionItems: AttentionItem[] = [
+  {
+    priorityKey: 'priority.high',
+    priorityTone: 'high',
+    requirement: 'Alih Kelola Telkom Solution',
+    issue: 'Ownership confirmation pending',
+    decision: 'Approve transfer EMRM -> CEM',
+    executiveOwner: 'CEM / IBP',
+    due: '4 Jun',
+    detailSlug: 'alih-kelola-telkom-solution',
+  },
+  {
+    priorityKey: 'priority.high',
+    priorityTone: 'high',
+    requirement: 'DR BAPL',
+    issue: 'Scope adjustment required',
+    decision: 'Decide replacement scope in SMILE Adv',
+    executiveOwner: 'ESS / SDA / IBP',
+    due: '7 Jun',
+    detailSlug: 'dr-bapl',
+  },
+  {
+    priorityKey: 'priority.medium',
+    priorityTone: 'medium',
+    requirement: 'TRAVIS / B2B ITSM',
+    issue: 'Contract ending risk',
+    decision: 'Confirm target replacement platform',
+    executiveOwner: 'CEM / DIT',
+    due: '15 Jun',
+    detailSlug: 'travis-b2b-itsm',
+  },
+  {
+    priorityKey: 'priority.medium',
+    priorityTone: 'medium',
+    requirement: 'Smart Capex',
+    issue: 'Retirement approach unclear',
+    decision: 'Validate migration to SMILE Adv',
+    executiveOwner: 'Access / IBP',
+    due: '10 Jun',
+    detailSlug: 'smart-capex',
+  },
+]
+
+const demandTrend = [
+  { week: 'Mar 31', count: 8 },
+  { week: 'Apr 7', count: 12 },
+  { week: 'Apr 14', count: 11 },
+  { week: 'Apr 21', count: 7 },
+  { week: 'Apr 28', count: 10 },
+  { week: 'May 5', count: 13 },
+  { week: 'May 12', count: 11 },
+  { week: 'May 19', count: 12 },
+]
+
+const portfolioInitiatives = [
+  { name: 'Alih Kelola Aplikasi', count: 8, color: '#6d5dfc' },
+  { name: 'B2B Digital Enablement', count: 6, color: '#14b8a6' },
+  { name: 'Application Rationalization', count: 5, color: '#3b82f6' },
+  { name: 'Governance & Compliance', count: 4, color: '#f59e0b' },
+  { name: 'BRM Process Improvement', count: 2, color: '#8b5cf6' },
+]
+
+const requestingUnits = [
+  { unit: 'Enterprise', count: 8, color: '#6d5dfc' },
+  { unit: 'Wholesale', count: 5, color: '#14b8a6' },
+  { unit: 'HCM', count: 4, color: '#3b82f6' },
+  { unit: 'Finance', count: 3, color: '#f59e0b' },
+  { unit: 'Consumer', count: 5, color: '#8b5cf6' },
+]
+
+const risks = [
+  { titleKey: 'risk.ownershipDecision.title', descriptionKey: 'risk.ownershipDecision.description', icon: FileWarning, tone: 'bad' },
+  { titleKey: 'risk.budgetApproval.title', descriptionKey: 'risk.budgetApproval.description', icon: Clock3, tone: 'warning' },
+  { titleKey: 'risk.externalDependency.title', descriptionKey: 'risk.externalDependency.description', icon: AlertTriangle, tone: 'warning' },
+  { titleKey: 'risk.agingBacklog.title', descriptionKey: 'risk.agingBacklog.description', icon: TrendingDown, tone: 'bad' },
+] satisfies { titleKey: TranslationKey; descriptionKey: TranslationKey; icon: IconType; tone: Tone }[]
+
+const healthStats = [
+  { labelKey: 'health.status', valueKey: 'status.good' },
+  { labelKey: 'health.totalRequirements', value: '25' },
+  { labelKey: 'health.totalInitiatives', value: '15' },
+  { labelKey: 'health.activeRequestingUnits', value: '5' },
+  { labelKey: 'health.openRisks', value: '15' },
+] satisfies { labelKey: TranslationKey; value?: string; valueKey?: TranslationKey }[]
+
+function toneClasses(tone: Tone) {
+  const map: Record<Tone, string> = {
+    good: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    warning: 'bg-amber-50 text-amber-700 ring-amber-200',
+    bad: 'bg-red-50 text-red-700 ring-red-200',
+    neutral: 'bg-slate-50 text-slate-600 ring-slate-200',
+    purple: 'bg-violet-50 text-violet-700 ring-violet-200',
+  }
+  return map[tone]
 }
 
-const STATUS_OPTIONS  = [
-  { value: 'todo',                  label: 'To Do',           dot: '#9ca3af' },
-  { value: 'requirement_gathering', label: 'Req. Gathering',  dot: '#3b82f6' },
-  { value: 'development',           label: 'Development',     dot: '#6366f1' },
-  { value: 'sit',                   label: 'SIT',             dot: '#f59e0b' },
-  { value: 'uat',                   label: 'UAT',             dot: '#8b5cf6' },
-  { value: 'd2p',                   label: 'D2P',             dot: '#ec4899' },
-  { value: 'production_test',       label: 'Production Test', dot: '#f97316' },
-  { value: 'completed',             label: 'Completed',       dot: '#10b981' },
-]
-const PRIORITY_OPTIONS = [
-  { value: 'critical', label: 'Critical', dot: '#ef4444' },
-  { value: 'high',     label: 'High',     dot: '#f97316' },
-  { value: 'medium',   label: 'Medium',   dot: '#3b82f6' },
-  { value: 'low',      label: 'Low',      dot: '#9ca3af' },
-]
+function iconToneClasses(tone: Tone) {
+  const map: Record<Tone, string> = {
+    good: 'bg-emerald-50 text-emerald-600',
+    warning: 'bg-amber-50 text-amber-600',
+    bad: 'bg-red-50 text-red-600',
+    neutral: 'bg-slate-50 text-slate-600',
+    purple: 'bg-violet-50 text-violet-600',
+  }
+  return map[tone]
+}
 
-// ─── Metric card ─────────────────────────────────────────────────────────────
-
-const METRIC_CONFIG = [
-  { icon: BarChart2,     bg: 'bg-violet-50',  text: 'text-violet-600' },
-  { icon: AlertTriangle, bg: 'bg-orange-50',  text: 'text-orange-600' },
-  { icon: CalendarDays,  bg: 'bg-sky-50',     text: 'text-sky-600' },
-]
-
-function MetricCard({ label, value, idx }: { label: string; value: number; idx: number }) {
-  const { icon: Icon, bg, text } = METRIC_CONFIG[idx] ?? METRIC_CONFIG[0]
+function CardShell({
+  title,
+  subtitle,
+  icon,
+  action,
+  children,
+  className,
+}: {
+  title: string
+  subtitle?: string
+  icon?: ReactNode
+  action?: ReactNode
+  children: ReactNode
+  className?: string
+}) {
   return (
-    <div
-      className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 animate-fade-in-up"
-      style={{ animationDelay: `${idx * 50}ms` }}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-[12px] font-medium text-gray-500 leading-tight">{label}</p>
-        <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
-          <Icon size={16} className={text} />
+    <section className={cn('rounded-2xl border border-slate-200/80 bg-white shadow-[0_18px_42px_rgba(15,23,42,0.05)]', className)}>
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <div className="flex min-w-0 items-start gap-3">
+          {icon && (
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+              {icon}
+            </div>
+          )}
+          <div className="min-w-0">
+            <h2 className="text-[14px] font-semibold text-slate-950">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-[12px] text-slate-500">{subtitle}</p>}
+          </div>
         </div>
+        {action}
       </div>
-      <p className={`text-[30px] font-bold tabular-nums ${text}`}>{value}</p>
-    </div>
+      <div className="p-5">{children}</div>
+    </section>
   )
 }
 
-function SkeletonCard() {
-  return <div className="bg-white rounded-xl border border-gray-200 h-[88px] skeleton" />
-}
-
-// ─── Tooltip ─────────────────────────────────────────────────────────────────
-
-const CustomTooltip = ({ active, payload, label }: any) => {
+function ChartTooltip({ active, payload, label }: any) {
+  const { t } = useI18n()
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-3 py-2 text-[12px]">
-      <p className="font-semibold text-gray-700 mb-1">{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.fill || p.color || p.stroke }}>{p.value} items</p>
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] shadow-xl shadow-slate-900/10">
+      <p className="mb-1 font-semibold text-slate-700">{label}</p>
+      {payload.map((item: any) => (
+        <p key={item.dataKey} className="font-medium" style={{ color: item.fill || item.stroke }}>
+          {item.value} {t('unit.items')}
+        </p>
       ))}
     </div>
   )
 }
 
-// ─── Chip ─────────────────────────────────────────────────────────────────────
+function KpiCard({ item, idx }: { item: KpiItem; idx: number }) {
+  const navigate = useNavigate()
+  const { t } = useI18n()
+  const Icon = item.icon
+  const riskTone = item.trendTone === 'bad' || item.trendTone === 'warning' ? item.trendTone : 'purple'
 
-function Chip({ label, dot, onRemove }: { label: string; dot?: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-violet-50 border border-violet-200 rounded-full text-[11px] text-violet-700 font-medium">
-      {dot && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dot }} />}
-      {label}
-      <button onClick={onRemove} className="p-0.5 rounded-full hover:bg-violet-200 transition-colors ml-0.5">
-        <X size={10} />
-      </button>
+    <button
+      type="button"
+      onClick={() => navigate(item.href)}
+      className="group rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-[0_14px_32px_rgba(15,23,42,0.04)] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_20px_44px_rgba(79,70,229,0.12)]"
+      style={{ animationDelay: `${idx * 35}ms` }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl transition-colors', iconToneClasses(riskTone))}>
+          <Icon size={18} />
+        </div>
+        <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1', toneClasses(item.trendTone))}>
+          {item.trend}
+          <span className="hidden xl:inline">{t('kpi.trend.vsLastMonth')}</span>
+        </span>
+      </div>
+      <p className="mt-4 text-[12px] font-medium text-slate-500">{t(item.labelKey)}</p>
+      <p className="mt-1 text-[28px] font-semibold tracking-tight text-slate-950">
+        {item.value}
+        {item.suffixKey && <><span> </span><span className="inline-block text-[18px] font-semibold text-slate-500">{t(item.suffixKey)}</span></>}
+      </p>
+    </button>
+  )
+}
+
+function PriorityPill({ priorityKey, tone }: { priorityKey: TranslationKey; tone: 'high' | 'medium' }) {
+  const { t } = useI18n()
+  return (
+    <span className={cn(
+      'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1',
+      tone === 'high' ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-amber-50 text-amber-700 ring-amber-200',
+    )}>
+      {t(priorityKey)}
     </span>
   )
 }
 
-// ─── Throughput chart ────────────────────────────────────────────────────────
+function ManagementAttentionTable() {
+  const navigate = useNavigate()
+  const { t } = useI18n()
 
-function ThroughputChart({ data }: { data: { week: string; count: number }[] }) {
-  const formatted = data.map((d) => ({
-    label: new Date(d.week + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    count: Number(d.count),
-  }))
   return (
-    <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm animate-fade-in-up">
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp size={15} className="text-violet-500" />
-        <h3 className="text-[13px] font-semibold text-gray-700">Weekly Completions</h3>
-        <span className="ml-auto text-[11px] text-gray-400">Last 8 weeks</span>
+    <CardShell
+      title={t('section.managementAttention')}
+      icon={<FileWarning size={17} />}
+      action={
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard/management-attention')}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+        >
+          {t('button.viewAll')}
+          <ArrowRight size={13} />
+        </button>
+      }
+      className="overflow-hidden"
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[860px] border-separate border-spacing-0 text-left">
+          <thead>
+            <tr className="text-[11px] uppercase tracking-[0.08em] text-slate-400">
+              <th className="pb-3 font-semibold">{t('table.priority')}</th>
+              <th className="pb-3 font-semibold">{t('table.requirement')}</th>
+              <th className="pb-3 font-semibold">{t('table.issue')}</th>
+              <th className="pb-3 font-semibold">{t('table.requiredDecision')}</th>
+              <th className="pb-3 font-semibold">{t('table.executiveOwner')}</th>
+              <th className="pb-3 text-right font-semibold">{t('table.due')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {attentionItems.map((item) => (
+              <tr
+                key={item.requirement}
+                onClick={() => navigate(`/requirements/detail/${item.detailSlug}`)}
+                className="group cursor-pointer text-[13px] text-slate-700"
+              >
+                <td className="border-t border-slate-100 py-3 pr-4">
+                  <PriorityPill priorityKey={item.priorityKey} tone={item.priorityTone} />
+                </td>
+                <td className="border-t border-slate-100 py-3 pr-4 font-semibold text-slate-950 group-hover:text-violet-700">
+                  {item.requirement}
+                </td>
+                <td className="border-t border-slate-100 py-3 pr-4">{item.issue}</td>
+                <td className="border-t border-slate-100 py-3 pr-4 text-slate-900">{item.decision}</td>
+                <td className="border-t border-slate-100 py-3 pr-4">
+                  <span className="rounded-full bg-slate-50 px-2 py-1 text-[12px] font-medium text-slate-600 ring-1 ring-slate-200">
+                    {item.executiveOwner}
+                  </span>
+                </td>
+                <td className="border-t border-slate-100 py-3 text-right font-semibold text-slate-900">{item.due}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <ResponsiveContainer width="100%" height={160}>
-        <AreaChart data={formatted} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+    </CardShell>
+  )
+}
+
+function DemandTrendChart() {
+  const { t } = useI18n()
+
+  return (
+    <CardShell
+      title={t('section.demandTrend')}
+      subtitle={t('section.demandTrend.subtitle')}
+      icon={<LineChartIcon size={17} />}
+    >
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={demandTrend} margin={{ top: 8, right: 10, bottom: 0, left: -18 }}>
           <defs>
-            <linearGradient id="throughputGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.18} />
-              <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+            <linearGradient id="demandLine" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#6d5dfc" />
+              <stop offset="100%" stopColor="#14b8a6" />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-          <Tooltip content={<CustomTooltip />} />
-          <Area
+          <CartesianGrid stroke="#eef2f7" vertical={false} />
+          <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <Tooltip content={<ChartTooltip />} />
+          <Line
             type="monotone"
             dataKey="count"
-            stroke="#6366f1"
-            strokeWidth={2}
-            fill="url(#throughputGrad)"
-            dot={{ fill: '#6366f1', strokeWidth: 0, r: 3 }}
-            activeDot={{ r: 5, fill: '#6366f1' }}
+            stroke="url(#demandLine)"
+            strokeWidth={3}
+            dot={{ r: 4, fill: '#fff', stroke: '#6d5dfc', strokeWidth: 2 }}
+            activeDot={{ r: 6, fill: '#6d5dfc', stroke: '#fff', strokeWidth: 2 }}
           />
-        </AreaChart>
+        </LineChart>
       </ResponsiveContainer>
-    </div>
+    </CardShell>
   )
 }
 
-// ─── Horizontal bar chart (by tag / by assignee) ──────────────────────────────
+function PortfolioChart() {
+  const navigate = useNavigate()
+  const { t } = useI18n()
 
-function HBarChart({
-  title, icon, data,
-}: {
-  title: string
-  icon: React.ReactNode
-  data: { name: string; count: number; color?: string }[]
-}) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm animate-fade-in-up">
-      <div className="flex items-center gap-2 mb-4">
-        {icon}
-        <h3 className="text-[13px] font-semibold text-gray-700">{title}</h3>
-      </div>
-      {data.length === 0 ? (
-        <p className="text-[13px] text-gray-400 py-4 text-center">No data yet</p>
-      ) : (
-        <ResponsiveContainer width="100%" height={Math.max(data.length * 32, 80)}>
-          <BarChart layout="vertical" data={data} margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
-            <XAxis
-              type="number"
-              allowDecimals={false}
-              tick={{ fontSize: 10, fill: '#9ca3af' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={80}
-              tick={{ fontSize: 11, fill: '#6b7280' }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f9fafb' }} />
-            <Bar dataKey="count" radius={[0, 5, 5, 0]} maxBarSize={14}>
-              {data.map((entry, i) => (
-                <Cell key={i} fill={entry.color || '#6366f1'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      )}
-    </div>
+    <CardShell
+      title={t('section.portfolioInitiative')}
+      icon={<Layers3 size={17} />}
+      action={
+        <button
+          type="button"
+          onClick={() => navigate('/dashboard/portfolio-pipeline')}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+        >
+          {t('button.viewAll')}
+          <ArrowRight size={13} />
+        </button>
+      }
+    >
+      <ResponsiveContainer width="100%" height={252}>
+        <BarChart layout="vertical" data={portfolioInitiatives} margin={{ top: 4, right: 18, left: 36, bottom: 4 }}>
+          <CartesianGrid stroke="#eef2f7" horizontal={false} />
+          <XAxis type="number" hide />
+          <YAxis type="category" dataKey="name" width={145} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
+          <Tooltip content={<ChartTooltip />} cursor={{ fill: '#f8fafc' }} />
+          <Bar dataKey="count" radius={[0, 8, 8, 0]} barSize={18}>
+            {portfolioInitiatives.map((item) => <Cell key={item.name} fill={item.color} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </CardShell>
   )
 }
 
-// ─── Req list item ────────────────────────────────────────────────────────────
+function RequestingUnitChart() {
+  const navigate = useNavigate()
+  const { t } = useI18n()
 
-function ReqListItem({ item, isOverdue }: { item: DashboardReqItem; isOverdue?: boolean }) {
   return (
-    <div className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-gray-50 -mx-2 transition-colors group">
-      <div
-        className="w-1 self-stretch rounded-full shrink-0 min-h-[36px]"
-        style={{ backgroundColor: PRIORITY_HEX[item.priority] ?? '#9ca3af' }}
-      />
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium text-gray-800 truncate">{item.title}</p>
-        <p className={cn('text-[11px] mt-0.5', isOverdue ? 'text-red-500 font-medium' : 'text-amber-600')}>
-          {item.due_date ? formatDate(item.due_date) : '—'}
-        </p>
-      </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        {item.assigned_to && <UserAvatar user={item.assigned_to} size="sm" />}
-        <PriorityBadge priority={item.priority} size="sm" />
-      </div>
-    </div>
+    <CardShell title={t('section.requestingUnitDemand')} icon={<Building2 size={17} />}>
+      <ResponsiveContainer width="100%" height={252}>
+        <BarChart data={requestingUnits} margin={{ top: 8, right: 12, bottom: 0, left: -20 }}>
+          <CartesianGrid stroke="#eef2f7" vertical={false} />
+          <XAxis dataKey="unit" tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+          <Tooltip content={<ChartTooltip />} cursor={{ fill: '#f8fafc' }} />
+          <Bar
+            dataKey="count"
+            radius={[8, 8, 0, 0]}
+            barSize={34}
+            onClick={(item) => navigate(`/requirements?requesting_unit=${encodeURIComponent(item.unit)}&search=${encodeURIComponent(item.unit)}`)}
+            className="cursor-pointer"
+          >
+            {requestingUnits.map((item) => <Cell key={item.unit} fill={item.color} className="cursor-pointer" />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </CardShell>
   )
 }
 
-function ReqListPanel({
-  title, icon, items, isOverdue, emptyMsg,
-}: {
-  title: string
-  icon: React.ReactNode
-  items: DashboardReqItem[]
-  isOverdue?: boolean
-  emptyMsg: string
-}) {
+function RiskCard() {
+  const { t } = useI18n()
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm animate-fade-in-up">
-      <div className="flex items-center gap-2 mb-4">
-        {icon}
-        <h3 className="text-[13px] font-semibold text-gray-700">{title}</h3>
-        {items.length > 0 && (
-          <span className="ml-auto text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-            {items.length}
-          </span>
-        )}
+    <CardShell title={t('section.topRisks')} icon={<ShieldAlert size={17} />}>
+      <div className="space-y-3">
+        {risks.map((risk, idx) => {
+          const Icon = risk.icon
+          return (
+            <div key={risk.titleKey} className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+              <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', iconToneClasses(risk.tone))}>
+                <Icon size={17} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-400">0{idx + 1}</span>
+                  <h3 className="text-[13px] font-semibold text-slate-950">{t(risk.titleKey)}</h3>
+                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-slate-500">{t(risk.descriptionKey)}</p>
+              </div>
+            </div>
+          )
+        })}
       </div>
-      {items.length === 0 ? (
-        <p className="text-[13px] text-gray-400 py-2">{emptyMsg}</p>
-      ) : (
-        <div className="space-y-0.5">
-          {items.map((item) => (
-            <ReqListItem key={item.id} item={item} isOverdue={isOverdue} />
+    </CardShell>
+  )
+}
+
+function OverallHealthCard() {
+  const { t } = useI18n()
+  const data = [{ name: t('health.overallHealth'), value: 84, fill: '#6d5dfc' }]
+
+  return (
+    <CardShell title={t('section.overallHealth')} icon={<BadgeCheck size={17} />}>
+      <div className="grid items-center gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="relative h-[174px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadialBarChart cx="50%" cy="78%" innerRadius="96%" outerRadius="122%" barSize={16} data={data} startAngle={180} endAngle={0}>
+              <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+              <RadialBar dataKey="value" background={{ fill: '#eef2f7' }} cornerRadius={16} />
+            </RadialBarChart>
+          </ResponsiveContainer>
+          <div className="absolute inset-x-0 bottom-1 text-center">
+            <p className="text-[38px] font-semibold tracking-tight text-slate-950">84%</p>
+            <p className="mt-1 text-[12px] font-medium text-emerald-600">{t('status.good')}</p>
+          </div>
+        </div>
+
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+          {healthStats.map((stat) => (
+            <div key={stat.labelKey} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-medium text-slate-500">{t(stat.labelKey)}</p>
+              <p className="mt-1 text-[15px] font-semibold text-slate-950">{stat.valueKey ? t(stat.valueKey) : stat.value}</p>
+            </div>
           ))}
         </div>
-      )}
-    </div>
+      </div>
+    </CardShell>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function DashboardPage() {
-  const [filters, setFilters] = useState<DashboardFilters>({})
-  const [showFilters, setShowFilters] = useState(false)
-
-  const tagsQuery = useTagsQuery()
-  const { data: tags } = useQuery(tagsQuery)
-
-  const dashQuery  = useDashboardQuery(filters)
-  const myReqQuery = useMyRequirementsQuery()
-
-  const { data: metrics, isLoading } = useQuery({ ...dashQuery, refetchInterval: 60_000 })
-  const { data: myReqs }             = useQuery(myReqQuery)
-
-  const tagOptions = tags?.map((t) => ({ value: t.id, label: t.name, dot: t.color })) ?? []
-
-  const setArr = <K extends keyof DashboardFilters>(key: K, val: string[]) =>
-    setFilters((prev) => ({ ...prev, [key]: val.length ? val : undefined }))
-
-  const setDate = (key: 'from_date' | 'to_date', val: string) =>
-    setFilters((prev) => ({ ...prev, [key]: val || undefined }))
-
-  const activeCount =
-    (filters.statuses?.length   ?? 0) +
-    (filters.priorities?.length ?? 0) +
-    (filters.tag_ids?.length    ?? 0) +
-    (filters.from_date ? 1 : 0) +
-    (filters.to_date   ? 1 : 0)
-
-  const clearAll = () => setFilters({})
-
-  const metricItems = [
-    { label: 'Total Requirements', value: metrics?.total         ?? 0 },
-    { label: 'Overdue',            value: metrics?.overdue       ?? 0 },
-    { label: 'Due This Week',      value: metrics?.due_this_week ?? 0 },
-  ]
-
-  const statusChartData = metrics?.by_status?.map((s) => ({
-    name:  statusConfig[s.status as Status]?.label || s.status,
-    count: Number(s.count),
-    fill:  STATUS_COLORS[s.status] || '#9ca3af',
-  })) ?? []
-
-  const priorityChartData = metrics?.by_priority?.map((p) => ({
-    name:  priorityConfig[p.priority as Priority]?.label || p.priority,
-    value: Number(p.count),
-    color: PRIORITY_COLORS[p.priority] || '#9ca3af',
-  })) ?? []
-
-  const tagChartData = (metrics?.by_tag ?? []).map((t) => ({
-    name:  t.tag_name,
-    count: Number(t.count),
-    color: t.color,
-  }))
-
-  const assigneeChartData = (metrics?.by_assignee ?? []).map((a) => ({
-    name:  a.full_name.split(' ')[0],
-    count: Number(a.count),
-    color: '#6366f1',
-  }))
+  const { t } = useI18n()
 
   return (
-    <div className="space-y-5 w-full">
-
-      {/* ── Filter bar ──────────────────────────────────────── */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-lg border transition-all duration-150',
-              showFilters || activeCount > 0
-                ? 'bg-violet-50 border-violet-200 text-violet-700'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300',
-            )}
-          >
-            <SlidersHorizontal size={13} />
-            Filters
-            {activeCount > 0 && (
-              <span className="bg-violet-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
-                {activeCount}
-              </span>
-            )}
-          </button>
-
-          {!showFilters && activeCount > 0 && (
-            <>
-              {filters.from_date && (
-                <Chip label={`From ${filters.from_date}`} onRemove={() => setDate('from_date', '')} />
-              )}
-              {filters.to_date && (
-                <Chip label={`To ${filters.to_date}`} onRemove={() => setDate('to_date', '')} />
-              )}
-              {filters.statuses?.map((s) => (
-                <Chip
-                  key={s}
-                  label={STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s}
-                  dot={STATUS_OPTIONS.find((o) => o.value === s)?.dot}
-                  onRemove={() => setArr('statuses', (filters.statuses ?? []).filter((x) => x !== s))}
-                />
-              ))}
-              {filters.priorities?.map((p) => (
-                <Chip
-                  key={p}
-                  label={PRIORITY_OPTIONS.find((o) => o.value === p)?.label ?? p}
-                  dot={PRIORITY_OPTIONS.find((o) => o.value === p)?.dot}
-                  onRemove={() => setArr('priorities', (filters.priorities ?? []).filter((x) => x !== p))}
-                />
-              ))}
-              {filters.tag_ids?.map((id) => {
-                const tag = tagOptions.find((o) => o.value === id)
-                return tag ? (
-                  <Chip
-                    key={id}
-                    label={tag.label}
-                    dot={tag.dot}
-                    onRemove={() => setArr('tag_ids', (filters.tag_ids ?? []).filter((x) => x !== id))}
-                  />
-                ) : null
-              })}
-              <button onClick={clearAll} className="text-[11px] text-red-400 hover:text-red-600 transition-colors">
-                Clear all
-              </button>
-            </>
-          )}
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[12px] font-semibold text-violet-700">
+            <Target size={13} />
+            {t('page.executiveOverview.eyebrow')}
+          </div>
+          <h1 className="text-[28px] font-semibold tracking-tight text-slate-950">{t('page.executiveOverview.title')}</h1>
+          <p className="mt-1 text-[14px] text-slate-500">{t('page.executiveOverview.subtitle')}</p>
         </div>
-
-        {showFilters && (
-          <div className="flex items-center gap-2 flex-wrap animate-fade-in-up">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-gray-400">From</span>
-              <input
-                type="date"
-                value={filters.from_date ?? ''}
-                onChange={(e) => setDate('from_date', e.target.value)}
-                className={cn(
-                  'px-2.5 py-1.5 text-[12px] rounded-lg border transition-all bg-white',
-                  filters.from_date
-                    ? 'border-violet-200 text-violet-700 bg-violet-50'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300',
-                )}
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-gray-400">To</span>
-              <input
-                type="date"
-                value={filters.to_date ?? ''}
-                onChange={(e) => setDate('to_date', e.target.value)}
-                className={cn(
-                  'px-2.5 py-1.5 text-[12px] rounded-lg border transition-all bg-white',
-                  filters.to_date
-                    ? 'border-violet-200 text-violet-700 bg-violet-50'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300',
-                )}
-              />
-            </div>
-            <MultiSelect
-              values={filters.statuses ?? []}
-              onChange={(v) => setArr('statuses', v)}
-              options={STATUS_OPTIONS}
-              placeholder="All Statuses"
-            />
-            <MultiSelect
-              values={filters.priorities ?? []}
-              onChange={(v) => setArr('priorities', v)}
-              options={PRIORITY_OPTIONS}
-              placeholder="All Priorities"
-            />
-            {tagOptions.length > 0 && (
-              <MultiSelect
-                values={filters.tag_ids ?? []}
-                onChange={(v) => setArr('tag_ids', v)}
-                options={tagOptions}
-                placeholder="All Tags"
-              />
-            )}
-            {activeCount > 0 && (
-              <button
-                onClick={clearAll}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-[12px] text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
-              >
-                <X size={12} /> Clear all
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Metric cards (6) ────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
-        {isLoading
-          ? [1,2,3].map((i) => <SkeletonCard key={i} />)
-          : metricItems.map((m, i) => <MetricCard key={m.label} {...m} idx={i} />)
-        }
-      </div>
-
-      {/* ── Charts row 1: Status + Priority ─────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart2 size={15} className="text-violet-500" />
-            <h3 className="text-[13px] font-semibold text-gray-700">By Status</h3>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={statusChartData} barSize={24} barCategoryGap="30%" margin={{ bottom: 48 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 10, fill: '#9ca3af' }}
-                axisLine={false}
-                tickLine={false}
-                angle={-35}
-                textAnchor="end"
-                interval={0}
-              />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f9fafb' }} />
-              <Bar dataKey="count" radius={[5, 5, 0, 0]}>
-                {statusChartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={15} className="text-violet-500" />
-            <h3 className="text-[13px] font-semibold text-gray-700">By Priority</h3>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={priorityChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3}>
-                {priorityChartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-[11px] text-gray-600">{v}</span>} />
-            </PieChart>
-          </ResponsiveContainer>
+        <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[12px] text-slate-500 shadow-sm">
+          <TrendingUp size={15} className="text-emerald-500" />
+          <span>{t('health.overallHealth')}</span>
+          <span className="font-semibold text-slate-950">84%</span>
         </div>
       </div>
 
-      {/* ── Throughput ───────────────────────────────────────── */}
-      <ThroughputChart data={metrics?.throughput ?? []} />
+      <section aria-label={t('section.kpiSummary')} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {kpiItems.map((item, idx) => <KpiCard key={item.labelKey} item={item} idx={idx} />)}
+      </section>
 
-      {/* ── Charts row 2: By Tag + By Assignee ──────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <HBarChart
-          title="By Tag"
-          icon={<TagIcon size={15} className="text-violet-500" />}
-          data={tagChartData}
-        />
-        <HBarChart
-          title="Workload by Assignee"
-          icon={<Users size={15} className="text-violet-500" />}
-          data={assigneeChartData}
-        />
+      <div className="grid grid-cols-1 gap-5">
+        <ManagementAttentionTable />
+        <OverallHealthCard />
       </div>
 
-      {/* ── Overdue + Upcoming ───────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ReqListPanel
-          title="Overdue"
-          icon={<AlertTriangle size={15} className="text-orange-500" />}
-          items={metrics?.overdue_list ?? []}
-          isOverdue
-          emptyMsg="No overdue requirements"
-        />
-        <ReqListPanel
-          title="Due This Week"
-          icon={<CalendarDays size={15} className="text-sky-500" />}
-          items={metrics?.upcoming_list ?? []}
-          emptyMsg="Nothing due in the next 7 days"
-        />
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <DemandTrendChart />
+        <PortfolioChart />
       </div>
 
-      {/* ── Recent Activity + My Requirements ────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity size={15} className="text-violet-500" />
-            <h3 className="text-[13px] font-semibold text-gray-700">Recent Activity</h3>
-          </div>
-          <div className="space-y-3.5">
-            {!metrics?.recent_activity?.length ? (
-              <p className="text-[13px] text-gray-400 py-2">No recent activity</p>
-            ) : (
-              metrics.recent_activity.map((a) => (
-                <div key={a.id} className="flex items-start gap-3">
-                  <UserAvatar user={a.actor} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] text-gray-700 leading-snug">
-                      <span className="font-medium">{a.actor?.full_name}</span>{' '}
-                      {actionLabel(a.action)}
-                      {a.requirement_title && (
-                        <span className="text-violet-600 font-medium"> "{a.requirement_title}"</span>
-                      )}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{formatRelative(a.created_at)}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.78fr)]">
+        <RequestingUnitChart />
+        <RiskCard />
+      </div>
 
-        <div className="bg-white rounded-xl border border-gray-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <CheckCircle2 size={15} className="text-violet-500" />
-            <h3 className="text-[13px] font-semibold text-gray-700">My Requirements</h3>
-            {myReqs?.length ? (
-              <span className="ml-auto text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                {myReqs.length}
-              </span>
-            ) : null}
-          </div>
-          {!myReqs?.length ? (
-            <p className="text-[13px] text-gray-400 py-2">No requirements assigned to you</p>
-          ) : (
-            <div className="space-y-1.5">
-              {myReqs.map((r) => (
-                <div key={r.id} className="flex items-center justify-between py-2 px-2 rounded-lg hover:bg-gray-50 transition-colors -mx-2">
-                  <p className="text-[13px] font-medium text-gray-800 truncate mr-3 flex-1">{r.title}</p>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <StatusBadge status={r.status} size="sm" />
-                    <PriorityBadge priority={r.priority} size="sm" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="rounded-2xl border border-violet-200 bg-violet-50/70 px-4 py-3 text-[12px] leading-relaxed text-violet-800">
+        <span className="font-semibold">{t('note.executiveScope')}</span> {t('note.executiveScope.description')}
       </div>
     </div>
   )
